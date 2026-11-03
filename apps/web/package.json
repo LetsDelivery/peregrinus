@@ -1,0 +1,14 @@
+{
+  "name": "@peregrinus/web",
+  "description": "Painel do peregrinus: cliente de requisições e documentação. JavaScript puro, sem framework.",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --port 5280 --strictPort"
+  },
+  "devDependencies": {
+    "vite": "8.3.1"
+  }
+}
