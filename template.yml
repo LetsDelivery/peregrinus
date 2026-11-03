@@ -1,0 +1,610 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: peregrinus, a web client for HTTP requests and API documentation for the Lets team. One stack, plain CloudFormation.
+
+# What the stack holds:
+#   - a DynamoDB table with the collections and environments (chunked, see docs/adr/0001);
+#   - one Lambda behind an HTTP API, serving every /v1 route;
+#   - a private S3 bucket with the panel, behind CloudFront. The panel and the API share one origin: /api/* goes to
+#     the HTTP API and everything else to the bucket, so the panel needs no CORS;
+#   - a Cognito user pool federated with Google, with no passwords, for the company's Workspace accounts.
+# Deploying it is the pipeline's job (docs/deploy.md). Before the first deploy: the secret `peregrinus/google`
+# ({"clientSecret": "..."}), the SSM parameter /peregrinus/google/client-id, and the Mappings block of the account.
+
+Parameters:
+  # The four below are the ones the LET'S pipeline hands over (`config.json`, written by buildspec.yml).
+  ArtifactBucket:
+    Type: String
+    Description: Bucket of the pipeline that holds the function's zip and the built panel.
+  ArtifactPackage:
+    Type: String
+    Description: Key of the function's zip in ArtifactBucket.
+  ArtifactPackageVersion:
+    Type: String
+    Description: S3 version id of that zip, so a new upload under the same key updates the function.
+  PanelPrefix:
+    Type: String
+    Description: Prefix in ArtifactBucket under which the built panel's files were uploaded for this release.
+  AllowedEmailDomains:
+    Type: String
+    Default: uselets.com,lets.delivery
+    Description: Workspace domains that may sign in, separated by commas.
+  # Not a secret: the Google OAuth app's client id. The secret is in Secrets Manager as peregrinus/google.
+  GoogleClientId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /peregrinus/google/client-id
+    Description: SSM parameter that holds the Google OAuth client id.
+
+# What differs per account. A new account needs its own block, even with empty values.
+Mappings:
+  EnvConfig:
+    '761817249596':
+      # The dev account. The certificate is the one for *.uselets.com in us-east-1 (CloudFront requires that region).
+      DomainName: dev-peregrinus.uselets.com
+      CertificateArn: arn:aws:acm:us-east-1:761817249596:certificate/a36f7ada-dbe5-467a-9e1f-0218e8cc0501
+      # Empty: the zone is in another account, so the record is made by hand from the DistributionDomain output.
+      HostedZoneId: ''
+      AllowLocalhostCallback: 'true'
+
+Conditions:
+  HasHostedZone: !Not [!Equals [!FindInMap [EnvConfig, !Ref 'AWS::AccountId', HostedZoneId], '']]
+  AllowLocalhost: !Equals [!FindInMap [EnvConfig, !Ref 'AWS::AccountId', AllowLocalhostCallback], 'true']
+
+Resources:
+  # ---- data ---------------------------------------------------------------------------------------------
+  Table:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      Tags:
+        - Key: project
+          Value: peregrinus
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # ---- sign-in ------------------------------------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub peregrinus-${AWS::AccountId}
+      UserPoolTags:
+        project: peregrinus
+      # Nobody signs up and nobody is created by hand: a Google sign-in creates its own profile.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Schema:
+        # Google's `hd` (the Workspace domain) travels in the ID token as custom:hd, and the API checks it.
+        - Name: hd
+          AttributeDataType: String
+          Mutable: true
+
+  GoogleProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: '{{resolve:secretsmanager:peregrinus/google:SecretString:clientSecret}}'
+        authorize_scopes: openid email profile
+      AttributeMapping:
+        email: email
+        name: name
+        username: sub
+        custom:hd: hd
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub peregrinus-${AWS::AccountId}
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleProvider
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: panel
+      # The panel is a public client: the code flow with PKCE, no secret to keep.
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [Google]
+      CallbackURLs:
+        - !Sub ['https://${Domain}/entrar', { Domain: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName] }]
+        - !If [AllowLocalhost, 'http://localhost:5280/entrar', !Ref 'AWS::NoValue']
+      LogoutURLs:
+        - !Sub ['https://${Domain}', { Domain: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName] }]
+        - !If [AllowLocalhost, 'http://localhost:5280', !Ref 'AWS::NoValue']
+      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH]
+      RefreshTokenValidity: 1
+      IdTokenValidity: 60
+      TokenValidityUnits:
+        RefreshToken: days
+        IdToken: minutes
+
+  # ---- API ----------------------------------------------------------------------------------------------
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: table
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt Table.Arn
+
+  FunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/peregrinus-${AWS::AccountId}-api
+      RetentionInDays: 30
+
+  Function:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionLogs
+    Properties:
+      FunctionName: !Sub peregrinus-${AWS::AccountId}-api
+      Runtime: nodejs24.x
+      Architectures: [arm64]
+      Handler: index.handler
+      Tags:
+        - Key: project
+          Value: peregrinus
+      # API Gateway cuts an integration at 30 s; the proxy's own timeout is 25 s.
+      Timeout: 29
+      MemorySize: 512
+      Role: !GetAtt FunctionRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref ArtifactPackage
+        S3ObjectVersion: !Ref ArtifactPackageVersion
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          COGNITO_ISSUER: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          ALLOWED_EMAIL_DOMAINS: !Ref AllowedEmailDomains
+
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub peregrinus-${AWS::AccountId}
+      ProtocolType: HTTP
+      Tags:
+        project: peregrinus
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt Function.Arn
+      PayloadFormatVersion: '2.0'
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /{proxy+}
+      Target: !Sub integrations/${HttpApiIntegration}
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+
+  HttpApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Function
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*
+
+  # ---- panel --------------------------------------------------------------------------------------------
+  PanelBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: project
+          Value: peregrinus
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  PanelOriginAccess:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub peregrinus-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # The panel is a single page: any path without a file extension is index.html, and /config.js is made here
+  # from the stack's own values, so the panel needs no publish step to know its sign-in.
+  PanelRouter:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub peregrinus-${AWS::AccountId}-panel
+      AutoPublish: true
+      FunctionConfig:
+        Comment: SPA fallback and /config.js
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          if (request.uri === '/config.js') {
+            return {
+              statusCode: 200,
+              statusDescription: 'OK',
+              headers: { 'content-type': { value: 'application/javascript' }, 'cache-control': { value: 'no-store' } },
+              body: 'window.__PEREGRINUS__ = ' + JSON.stringify({
+                apiUrl: '/api',
+                cognitoDomain: 'peregrinus-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com',
+                clientId: '${UserPoolClient}'
+              })
+            };
+          }
+          if (request.uri.indexOf('.') === -1) {
+            request.uri = '/index.html';
+          }
+          return request;
+        }
+
+  # /api/foo reaches the HTTP API as /foo.
+  ApiRouter:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub peregrinus-${AWS::AccountId}-api
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Strips the /api prefix
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          request.uri = request.uri.replace(/^\/api/, '') || '/';
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        IPV6Enabled: true
+        Aliases: [!FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName]]
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        ViewerCertificate:
+          AcmCertificateArn: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', CertificateArn]
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: panel
+            DomainName: !GetAtt PanelBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt PanelOriginAccess.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api
+            DomainName: !Sub ${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+        DefaultCacheBehavior:
+          TargetOriginId: panel
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          # Managed CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref SecurityHeaders
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt PanelRouter.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            Compress: true
+            # Managed CachingDisabled and AllViewerExceptHostHeader
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a927445e0
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            ResponseHeadersPolicyId: !Ref SecurityHeaders
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ApiRouter.FunctionMetadata.FunctionARN
+
+  # The browser may only run the panel's own scripts, so a stray piece of markup cannot become a script.
+  # connect-src is open because "send from my browser" calls addresses the panel cannot know in advance.
+  SecurityHeaders:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub peregrinus-${AWS::AccountId}-security
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src *; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+            Override: true
+
+  PanelBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref PanelBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${PanelBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  # Copies the panel the pipeline built (loose files under PanelPrefix) into the panel bucket, then clears the CDN
+  # cache. index.html is never cached, and the hashed files are, for a year. A new PanelPrefix makes it run again.
+  PanelPublisherRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: publish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}
+                Condition:
+                  StringLike:
+                    s3:prefix: !Sub ${PanelPrefix}/*
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}/${PanelPrefix}/*
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub ${PanelBucket.Arn}/*
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  PanelPublisher:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub peregrinus-${AWS::AccountId}-panel-publisher
+      Runtime: nodejs24.x
+      Architectures: [arm64]
+      Handler: index.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt PanelPublisherRole.Arn
+      Tags:
+        - Key: project
+          Value: peregrinus
+      Code:
+        ZipFile: |
+          const https = require('https');
+          const { S3Client, ListObjectsV2Command, CopyObjectCommand } = require('@aws-sdk/client-s3');
+          const { CloudFrontClient, CreateInvalidationCommand } = require('@aws-sdk/client-cloudfront');
+          const s3 = new S3Client({});
+          const cdn = new CloudFrontClient({});
+          const TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', json: 'application/json', png: 'image/png', ico: 'image/x-icon', woff2: 'font/woff2', txt: 'text/plain; charset=utf-8' };
+          const typeOf = (key) => TYPES[key.split('.').pop()] || 'application/octet-stream';
+          const cacheOf = (key) => (key === 'index.html' ? 'no-cache' : 'public, max-age=31536000, immutable');
+          const keysUnder = async (bucket, prefix) => {
+            const keys = [];
+            let token;
+            do {
+              const page = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: token }));
+              keys.push(...(page.Contents || []).map((item) => item.Key));
+              token = page.NextContinuationToken;
+            } while (token);
+            return keys;
+          };
+          const publish = async (p) => {
+            const prefix = p.PanelPrefix.replace(/\/?$/, '/');
+            const keys = await keysUnder(p.ArtifactBucket, prefix);
+            if (keys.length === 0) throw new Error('No panel files under ' + prefix);
+            for (const key of keys) {
+              const target = key.slice(prefix.length);
+              await s3.send(new CopyObjectCommand({ Bucket: p.PanelBucket, Key: target, CopySource: p.ArtifactBucket + '/' + key.split('/').map(encodeURIComponent).join('/'), MetadataDirective: 'REPLACE', ContentType: typeOf(target), CacheControl: cacheOf(target) }));
+            }
+            await cdn.send(new CreateInvalidationCommand({ DistributionId: p.DistributionId, InvalidationBatch: { CallerReference: String(Date.now()), Paths: { Quantity: 1, Items: ['/*'] } } }));
+          };
+          const reply = (event, context, status, reason) => new Promise((resolve, reject) => {
+            const body = JSON.stringify({ Status: status, Reason: reason, PhysicalResourceId: event.PhysicalResourceId || context.logStreamName, StackId: event.StackId, RequestId: event.RequestId, LogicalResourceId: event.LogicalResourceId, Data: {} });
+            const url = new URL(event.ResponseURL);
+            const request = https.request({ hostname: url.hostname, path: url.pathname + url.search, method: 'PUT', headers: { 'content-type': '', 'content-length': Buffer.byteLength(body) } }, (res) => { res.resume(); res.on('end', resolve); });
+            request.on('error', reject);
+            request.end(body);
+          });
+          exports.handler = async (event, context) => {
+            try {
+              if (event.RequestType !== 'Delete') await publish(event.ResourceProperties);
+              await reply(event, context, 'SUCCESS', 'Published');
+            } catch (error) {
+              console.error(error);
+              await reply(event, context, 'FAILED', String(error));
+            }
+          };
+
+  PanelPublication:
+    Type: Custom::PanelPublication
+    Properties:
+      ServiceToken: !GetAtt PanelPublisher.Arn
+      ArtifactBucket: !Ref ArtifactBucket
+      PanelPrefix: !Ref PanelPrefix
+      PanelBucket: !Ref PanelBucket
+      DistributionId: !Ref Distribution
+
+  # Where the alarms speak. It has no subscriber yet: whoever runs the stack adds an e-mail or a chat hook.
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub peregrinus-${AWS::AccountId}-alarms
+      Tags:
+        - Key: project
+          Value: peregrinus
+
+  FunctionErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub peregrinus-${AWS::AccountId}-api-errors
+      AlarmDescription: The API function failed. Errors are unhandled ones; a refused request is not an error.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Function
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  FunctionNearTimeout:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub peregrinus-${AWS::AccountId}-api-near-timeout
+      AlarmDescription: A call took more than 25 seconds; the function stops at 29.
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref Function
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 25000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  ApiServerErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub peregrinus-${AWS::AccountId}-http-5xx
+      AlarmDescription: The HTTP API answered 5xx.
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref HttpApi
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlarmTopic]
+
+  DnsRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    Properties:
+      HostedZoneId: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', HostedZoneId]
+      Name: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName]
+      Type: A
+      AliasTarget:
+        # CloudFront's fixed hosted zone id.
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+  DnsRecordIpv6:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    Properties:
+      HostedZoneId: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', HostedZoneId]
+      Name: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName]
+      Type: AAAA
+      AliasTarget:
+        # CloudFront's fixed hosted zone id.
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+Outputs:
+  PanelUrl:
+    Value: !Sub ['https://${Domain}', { Domain: !FindInMap [EnvConfig, !Ref 'AWS::AccountId', DomainName] }]
+  DistributionDomain:
+    Description: Point DomainName here (CNAME or alias) when HostedZoneId was left empty.
+    Value: !GetAtt Distribution.DomainName
+  PanelBucketName:
+    Description: Where `bun run build:panel` output is synced.
+    Value: !Ref PanelBucket
+  TableName:
+    Value: !Ref Table
+  UserPoolId:
+    Value: !Ref UserPool
+  AlarmTopicArn:
+    Description: Subscribe an e-mail or a chat hook to it to hear the alarms.
+    Value: !Ref AlarmTopic
+  GoogleRedirectUri:
+    Description: Add this to the Google OAuth app's authorized redirect URIs.
+    Value: !Sub https://peregrinus-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse

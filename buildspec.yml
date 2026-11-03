@@ -1,0 +1,55 @@
+version: 0.2
+
+# The LET'S pipeline (aws-cicd) runs this from the repository root: build the function and the panel,
+# upload both to the pipeline bucket, and hand template.yml plus the artifact parameters to CodePipeline,
+# which deploys the one stack. BUCKET_NAME comes from the pipeline and CICD_BUCKET_NAME from the CodeBuild project.
+#
+# Two things travel: app.zip (the function) and the loose panel files under a prefix named after the commit,
+# which a custom resource in the stack copies to the panel bucket. Tests and gates run on every pull request
+# (ci.yml) before anything reaches master, so they are not repeated here.
+phases:
+  install:
+    runtime-versions:
+      nodejs: 24
+    commands:
+      # Pinned to packageManager in package.json: the build never picks up an unreviewed bun.
+      - curl -fsSL https://bun.sh/install | bash -s "bun-v$(jq -r '.packageManager | sub("^bun@"; "")' package.json)"
+      - export PATH="/root/.bun/bin:$PATH"
+      - bun --version
+      - apt-get update -qq && apt-get install -y -qq zip
+  pre_build:
+    commands:
+      - export PATH="/root/.bun/bin:$PATH"
+      - PROJECT_VERSION=$(jq -r .version package.json)
+      - echo "Release version $PROJECT_VERSION"
+      - bun install --frozen-lockfile
+  build:
+    commands:
+      - export PATH="/root/.bun/bin:$PATH"
+      - bun run build
+  post_build:
+    commands:
+      - PIPELINE=${CODEBUILD_INITIATOR#codepipeline/}
+      - PANEL_PREFIX=$PIPELINE/panel/$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - aws s3 cp dist/lambda.zip s3://$BUCKET_NAME/$PIPELINE/app.zip
+      - aws s3 sync apps/web/dist s3://$BUCKET_NAME/$PANEL_PREFIX --delete --only-show-errors
+      - aws s3api list-object-versions --bucket $BUCKET_NAME --prefix $PIPELINE/app.zip --max-items 1 > artifactVersion.json
+      - |
+        cat > config.json <<-EOF
+        {
+          "Parameters": {
+            "ArtifactBucket": "$BUCKET_NAME",
+            "ArtifactPackage": "$PIPELINE/app.zip",
+            "ArtifactPackageVersion": "$(jq -r .Versions[0].VersionId artifactVersion.json)",
+            "PanelPrefix": "$PANEL_PREFIX"
+          }
+        }
+        EOF
+      - cat config.json
+      # release-please creates the CHANGELOG on the first release; until then there is none to upload.
+      - if [ -f CHANGELOG.md ]; then aws s3 cp CHANGELOG.md s3://$CICD_BUCKET_NAME/$PIPELINE-CHANGELOG.md; fi
+artifacts:
+  type: zip
+  files:
+    - 'template.yml'
+    - 'config.json'
