@@ -38,12 +38,12 @@ Parameters:
 Mappings:
   EnvConfig:
     '761817249596':
-      # The dev account. The certificate is the one for *.uselets.com in us-east-1 (CloudFront requires that region).
-      DomainName: dev-peregrinus.uselets.com
+      # The one deployment (an internal tool has no separate production), in the dev AWS account. The certificate is the one for *.uselets.com in us-east-1 (CloudFront requires that region).
+      DomainName: peregrinus.uselets.com
       CertificateArn: arn:aws:acm:us-east-1:761817249596:certificate/a36f7ada-dbe5-467a-9e1f-0218e8cc0501
       # Empty: the zone is in another account, so the record is made by hand from the DistributionDomain output.
       HostedZoneId: ''
-      AllowLocalhostCallback: 'true'
+      AllowLocalhostCallback: 'false'
 
 Conditions:
   HasHostedZone: !Not [!Equals [!FindInMap [EnvConfig, !Ref 'AWS::AccountId', HostedZoneId], '']]

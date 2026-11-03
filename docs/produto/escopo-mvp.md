@@ -2,7 +2,7 @@
 
 Cliente de requisições HTTP para a web, para o time da Lets. É o básico do Postman mais a geração
 de documentação, sem o resto. Login só com a conta Google da empresa: quando a pessoa é desligada,
-perde o acesso. Roda na conta dev, sem produção.
+perde o acesso. É uma ferramenta interna, com um só ambiente, na conta AWS dev.
 
 Origem: pedido do time de engenharia em 2026-10-29. Esta especificação nasceu do uso normal do Postman (telas
 abertas por quem tem licença). Nenhum código nem bundle do Postman foi aberto ou analisado.

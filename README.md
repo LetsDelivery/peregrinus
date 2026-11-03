@@ -3,7 +3,7 @@
 A web client for HTTP requests for the Lets team: the basics of Postman plus generated API documentation,
 signed in with the company's Google account. Named after *Falco peregrinus*, the peregrine falcon.
 
-Status: working in dev, not deployed. What exists: importing a Postman Collection v2.1; a request builder with
+Status: working locally, not deployed yet. One environment only (an internal tool). What exists: importing a Postman Collection v2.1; a request builder with
 environments and variables; a server-side proxy that refuses internal destinations (and a browser mode for
 `localhost`); collections and environments saved in DynamoDB; generated documentation with examples and code
 snippets; documentation published at an address (like a Swagger page) with its own rule for who may open it; sign-in with the company's Google account; workspaces (personal and team) with admin, editor and viewer roles; a panel in Portuguese (default) and English, automatic or chosen in the settings.
