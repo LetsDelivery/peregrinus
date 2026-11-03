@@ -1,0 +1,42 @@
+{
+  "name": "peregrinus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=24.18.0",
+    "bun": ">=1.4.3"
+  },
+  "scripts": {
+    "api": "bun run services/api/src/local.ts",
+    "build": "bun run build:lambda && bun run build:panel",
+    "build:lambda": "bun build services/api/src/lambda.ts --target=node --format=esm --external '@aws-sdk/*' --outfile=dist/lambda/index.mjs && cd dist/lambda && rm -f ../lambda.zip && zip -q ../lambda.zip index.mjs",
+    "build:panel": "bun run --cwd apps/web build",
+    "check": "bunx biome check",
+    "check:fix": "bunx biome check --write",
+    "test": "bun test packages services apps",
+    "test:ci": "bun run check && bun run type-check && bun run test",
+    "type-check": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@commitlint/cli": "20.5.3",
+    "@commitlint/config-conventional": "20.5.3",
+    "@types/aws-lambda": "8.10.162",
+    "@types/bun": "1.4.3",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1160.0",
+    "@aws-sdk/lib-dynamodb": "3.1160.0",
+    "jose": "6.2.12",
+    "zod": "4.4.3"
+  }
+}

@@ -1,0 +1,4 @@
+[install]
+# Reproducible installs: an exact version in package.json is the contract (as in the other LET'S repositories).
+exact = true
+registry = "https://registry.npmjs.org"

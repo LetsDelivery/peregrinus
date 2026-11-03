@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+*.log
+.DS_Store
+.peregrinus/
+
+# Research notes taken from using the Postman app: kept on the author machine, not published.
+docs/produto/pesquisa-postman/
+docs/produto/levantamento-postman.md

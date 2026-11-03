@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "types": ["bun", "node", "aws-lambda"],
+
+    // tsc never emits here: it is the type gate only.
+    "noEmit": true,
+
+    // Relative imports carry a `.js` extension even though the file on disk is `.ts`.
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+
+    // bun does not create node_modules symlinks for workspace packages, so tsc needs these mappings.
+    "paths": {
+      "@peregrinus/core": ["./packages/core/src/index.ts"],
+      "@peregrinus/postman": ["./packages/postman/src/index.ts"],
+      "@peregrinus/send": ["./packages/send/src/index.ts"],
+      "@peregrinus/send/browser": ["./packages/send/src/browser.ts"],
+      "@peregrinus/docs": ["./packages/docs/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "services/*/src/**/*.ts"],
+  "exclude": ["node_modules", "**/node_modules", "apps"]
+}
