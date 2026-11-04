@@ -11,7 +11,9 @@ snippets; documentation published at an address (like a Swagger page) with its o
 ## Run it
 
 ```bash
-bun install
+bun run up                       # everything: installs what is missing, the API on :8280 and the panel on :5280 (Ctrl+C stops both)
+
+# or each part on its own:
 bun run api                      # API on 127.0.0.1:8280, `x-local-user: you@uselets.com` stands in for the login
 bun run --cwd apps/web dev       # panel on 127.0.0.1:5280
 bun run test:ci                  # Biome, tsc and every test
