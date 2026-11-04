@@ -1,4 +1,4 @@
-import { effectiveAuth, prepareRequest } from '@peregrinus/send/browser'
+import { effectiveAuth, prepareRequest } from '@postmano/send/browser'
 
 import { ApiError } from './api.js'
 

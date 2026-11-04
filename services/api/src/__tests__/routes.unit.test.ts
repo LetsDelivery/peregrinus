@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import type { Fetcher } from '@peregrinus/send'
+import type { Fetcher } from '@postmano/send'
 
 import type { ClaimsVerifier } from '../identity.js'
 import { type ApiDeps, createHandler } from '../routes.js'

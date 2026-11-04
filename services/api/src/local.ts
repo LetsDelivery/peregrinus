@@ -8,7 +8,7 @@ import { createFileStore } from './store/file.js'
  * listens on 127.0.0.1 only, and the proxy still refuses private destinations, as in the deployed stack.
  */
 const config = readConfig(process.env)
-const store = createFileStore(process.env.DATA_FILE ?? '.peregrinus/data.json')
+const store = createFileStore(process.env.DATA_FILE ?? '.postmano/data.json')
 const handle = createHandler({ identity: undefined, allowedDomains: config.allowedDomains, localUsers: true, store })
 const PANEL_PORT = process.env.PANEL_PORT ?? '5280'
 const PANEL_ORIGINS = [`http://localhost:${PANEL_PORT}`, `http://127.0.0.1:${PANEL_PORT}`]
@@ -34,4 +34,4 @@ const server = Bun.serve({
   }
 })
 
-console.error(JSON.stringify({ message: 'peregrinus api listening', url: String(server.url) }))
+console.error(JSON.stringify({ message: 'postmano api listening', url: String(server.url) }))

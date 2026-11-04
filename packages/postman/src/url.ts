@@ -1,4 +1,4 @@
-import type { KeyValue } from '@peregrinus/core'
+import type { KeyValue } from '@postmano/core'
 
 import type { RawUrl } from './raw.js'
 import { toKeyValues } from './text.js'

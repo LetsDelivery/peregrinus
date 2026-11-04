@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import type { Collection, RequestNode } from '@peregrinus/core'
-import { prepareRequest } from '@peregrinus/send/browser'
+import type { Collection, RequestNode } from '@postmano/core'
+import { prepareRequest } from '@postmano/send/browser'
 
 import { renderDocumentation, renderStandalone } from '../render.js'
 import { snippet } from '../snippets.js'

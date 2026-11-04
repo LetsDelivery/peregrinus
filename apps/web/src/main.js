@@ -19,7 +19,7 @@ import { topbar, workspaceName, workspaceSwitcher } from './views/topbar.js'
 
 const shell = html`<header class="top">
     <div class="top-left">
-      <img class="logo" src="/wordmark-dark.svg" alt="peregrinus" height="36" />
+      <img class="logo" src="/wordmark-dark.svg" alt="postmano" height="36" />
       <div id="ws-switch"></div>
     </div>
     <div class="top-right" id="top-right"></div>
@@ -429,7 +429,7 @@ const ACTIONS = {
   'export-collection': () => {
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([JSON.stringify(state.collection, null, 2)], { type: 'application/json' }))
-    link.download = `${state.collection.name.replace(/[^\w-]+/g, '-')}.peregrinus.json`
+    link.download = `${state.collection.name.replace(/[^\w-]+/g, '-')}.postmano.json`
     link.click()
     URL.revokeObjectURL(link.href)
   },

@@ -18,7 +18,7 @@ import {
   variableSchema,
   type Workspace,
   workspaceSchema
-} from '@peregrinus/core'
+} from '@postmano/core'
 
 import { z } from 'zod'
 

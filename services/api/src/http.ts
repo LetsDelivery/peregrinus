@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
-import { InvalidRequestException, type Role, UnauthenticatedException } from '@peregrinus/core'
-import type { SendDeps } from '@peregrinus/send'
+import { InvalidRequestException, type Role, UnauthenticatedException } from '@postmano/core'
+import type { SendDeps } from '@postmano/send'
 import type { z } from 'zod'
 
 import { assertAdmitted, type Caller, type ClaimsVerifier, requireToken } from './identity.js'

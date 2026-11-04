@@ -1,4 +1,4 @@
-import type { PreparedRequest } from '@peregrinus/send/browser'
+import type { PreparedRequest } from '@postmano/send/browser'
 
 export type Language = 'curl' | 'javascript' | 'python'
 

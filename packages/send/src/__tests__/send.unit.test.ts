@@ -5,7 +5,7 @@ import {
   ResponseTooLargeException,
   UpstreamException,
   UpstreamTimeoutException
-} from '@peregrinus/core'
+} from '@postmano/core'
 import type { Fetcher } from '../pinned.js'
 import type { PreparedRequest } from '../prepare.js'
 import { type SendDeps, sendRequest } from '../send.js'

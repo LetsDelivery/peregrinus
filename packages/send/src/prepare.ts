@@ -1,4 +1,4 @@
-import { type Auth, type Body, InvalidRequestException, type KeyValue, type RequestNode } from '@peregrinus/core'
+import { type Auth, type Body, InvalidRequestException, type KeyValue, type RequestNode } from '@postmano/core'
 
 import { createResolver, type DynamicSource, type Scopes } from './variables.js'
 

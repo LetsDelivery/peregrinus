@@ -1,4 +1,4 @@
-import { LANGUAGES, renderDocumentation, renderStandalone } from '@peregrinus/docs'
+import { LANGUAGES, renderDocumentation, renderStandalone } from '@postmano/docs'
 
 import { html, raw } from '../lib/html.js'
 import { locale, t } from '../lib/i18n.js'

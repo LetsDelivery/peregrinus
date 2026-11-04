@@ -1,4 +1,4 @@
-import { type Collection, InvalidRequestException } from '@peregrinus/core'
+import { type Collection, InvalidRequestException } from '@postmano/core'
 
 import { parseAuth } from './auth.js'
 import { toNode } from './items.js'

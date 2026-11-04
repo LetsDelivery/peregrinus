@@ -4,7 +4,7 @@ import { challengeOf, randomString } from './pkce.js'
  * Sign-in with Google through the stack's Cognito user pool: the code flow with PKCE. The panel is a public
  * client, so there is no secret. Locally there is no pool (`config.js` is empty) and `x-local-user` stands in.
  */
-const config = window.__PEREGRINUS__ ?? {}
+const config = window.__POSTMANO__ ?? {}
 const KEYS = { verifier: 'pg:verifier', state: 'pg:state', session: 'pg:session', back: 'pg:back' }
 
 export const isLocal = !config.cognitoDomain

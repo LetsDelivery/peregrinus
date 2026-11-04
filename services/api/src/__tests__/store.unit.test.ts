@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { ConflictException, NotFoundException } from '@peregrinus/core'
+import { ConflictException, NotFoundException } from '@postmano/core'
 
 import { createDynamoStore } from '../store/dynamo.js'
 import { createFileStore } from '../store/file.js'

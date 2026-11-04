@@ -1,4 +1,4 @@
-import type { Example, FolderNode, Node, RequestNode } from '@peregrinus/core'
+import type { Example, FolderNode, Node, RequestNode } from '@postmano/core'
 
 import { parseAuth } from './auth.js'
 import { parseBody } from './body.js'

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import type { Auth, RequestNode } from '@peregrinus/core'
+import type { Auth, RequestNode } from '@postmano/core'
 
 import { effectiveAuth, prepareRequest } from '../prepare.js'
 

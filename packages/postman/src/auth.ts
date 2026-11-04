@@ -1,4 +1,4 @@
-import type { Auth } from '@peregrinus/core'
+import type { Auth } from '@postmano/core'
 
 import { type RawAuth, rawKeyValueSchema } from './raw.js'
 import { asText, type ImportContext, warn } from './text.js'

@@ -27,11 +27,11 @@
 
     // bun does not create node_modules symlinks for workspace packages, so tsc needs these mappings.
     "paths": {
-      "@peregrinus/core": ["./packages/core/src/index.ts"],
-      "@peregrinus/postman": ["./packages/postman/src/index.ts"],
-      "@peregrinus/send": ["./packages/send/src/index.ts"],
-      "@peregrinus/send/browser": ["./packages/send/src/browser.ts"],
-      "@peregrinus/docs": ["./packages/docs/src/index.ts"]
+      "@postmano/core": ["./packages/core/src/index.ts"],
+      "@postmano/postman": ["./packages/postman/src/index.ts"],
+      "@postmano/send": ["./packages/send/src/index.ts"],
+      "@postmano/send/browser": ["./packages/send/src/browser.ts"],
+      "@postmano/docs": ["./packages/docs/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "services/*/src/**/*.ts"],

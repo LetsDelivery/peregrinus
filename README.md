@@ -1,7 +1,7 @@
-# peregrinus
+# postmano
 
 A web client for HTTP requests for the Lets team: the basics of Postman plus generated API documentation,
-signed in with the company's Google account. Named after *Falco peregrinus*, the peregrine falcon.
+signed in with the company's Google account. The name is what the team already says: jira became JiraIA, and postman became postmano.
 
 Status: working locally, not deployed yet. One environment only (an internal tool). What exists: importing a Postman Collection v2.1; a request builder with
 environments and variables; a server-side proxy that refuses internal destinations (and a browser mode for

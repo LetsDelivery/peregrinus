@@ -11,9 +11,9 @@ import {
   requestSchema,
   variableSchema,
   viewerView
-} from '@peregrinus/core'
-import { importPostmanCollection } from '@peregrinus/postman'
-import { effectiveAuth, prepareRequest, sendRequest } from '@peregrinus/send'
+} from '@postmano/core'
+import { importPostmanCollection } from '@postmano/postman'
+import { effectiveAuth, prepareRequest, sendRequest } from '@postmano/send'
 import { z as zod } from 'zod'
 
 import {

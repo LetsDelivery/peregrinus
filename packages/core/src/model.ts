@@ -3,7 +3,7 @@ import { z } from 'zod'
 /**
  * The domain model: a collection of folders and requests, each request with the saved responses
  * (examples) that feed the generated documentation. It is the shape the importer produces and the
- * request builder consumes; the Postman Collection v2.1 shape lives in `@peregrinus/postman`.
+ * request builder consumes; the Postman Collection v2.1 shape lives in `@postmano/postman`.
  */
 export const keyValueSchema = z.object({
   key: z.string(),

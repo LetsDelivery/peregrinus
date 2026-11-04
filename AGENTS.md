@@ -1,4 +1,4 @@
-# AGENTS.md: peregrinus
+# AGENTS.md: postmano
 
 Rules for anyone, person or coding agent, changing this repository. They follow `LetsDelivery/JiraIA`;
 where it has a rule and this file is silent, its rule applies.
@@ -25,7 +25,7 @@ is pt-BR, and the panel picks it from the error `code`, never from the API's `me
 - Relative imports carry a `.js` extension. `bunx tsc --noEmit` must pass.
 - No `enum`, no `any`, no `.d.ts`. A zod schema is the type.
 - Functions of 4 to 20 lines, files under 500, at most two levels of indentation, cognitive complexity 8.
-- Errors name the offending value (`Scheme "file:" is not allowed`), via `@peregrinus/core` exceptions.
+- Errors name the offending value (`Scheme "file:" is not allowed`), via `@postmano/core` exceptions.
 - Everything is UTC. Never call local-time `Date` methods.
 - Log with `console.error` and a JSON line, never `console.log`. Never log an `Authorization` header or a body.
 - Every text the panel shows goes through `t('texto em português')` (`lib/i18n.js`) and has an English entry in
@@ -36,7 +36,7 @@ is pt-BR, and the panel picks it from the error `code`, never from the API's `me
 
 ## The proxy is a security boundary
 
-`@peregrinus/send` calls other servers on behalf of a person, from inside AWS. Every change to it needs a
+`@postmano/send` calls other servers on behalf of a person, from inside AWS. Every change to it needs a
 test that shows the destination guard still holds: loopback, private ranges, `169.254.169.254`, IPv4 written
 as IPv6, a name that resolves to a private address, and a redirect to any of them.
 

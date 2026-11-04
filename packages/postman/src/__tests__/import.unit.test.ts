@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { InvalidRequestException } from '@peregrinus/core'
+import { InvalidRequestException } from '@postmano/core'
 
 import { importPostmanCollection } from '../import.js'
 

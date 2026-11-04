@@ -1,5 +1,5 @@
-import type { Auth, Collection, Example, FolderNode, KeyValue, Node, RequestNode } from '@peregrinus/core'
-import { effectiveAuth, prepareRequest } from '@peregrinus/send/browser'
+import type { Auth, Collection, Example, FolderNode, KeyValue, Node, RequestNode } from '@postmano/core'
+import { effectiveAuth, prepareRequest } from '@postmano/send/browser'
 
 import { escapeHtml as esc } from './escape.js'
 import { type Labels, type Locale, labelsFor } from './labels.js'

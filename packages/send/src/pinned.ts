@@ -6,7 +6,7 @@ import { isIP, type LookupFunction } from 'node:net'
 import { Readable } from 'node:stream'
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
 
-import { BlockedDestinationException } from '@peregrinus/core'
+import { BlockedDestinationException } from '@postmano/core'
 
 import { isBlockedAddress } from './guard.js'
 
@@ -73,7 +73,7 @@ const withDefaults = (headers: Headers): Headers => {
   const merged = new Headers(headers)
   for (const [name, value] of [
     ['accept', '*/*'],
-    ['user-agent', 'peregrinus'],
+    ['user-agent', 'postmano'],
     ['accept-encoding', 'gzip, deflate, br']
   ] as const) {
     if (!merged.has(name)) {
@@ -87,7 +87,7 @@ const quoted = (value: string): string => value.replace(/[\r\n"]/g, '_')
 
 /** A multipart/form-data body of text fields. Files are not sent, so there is no other kind of part. */
 const multipart = (form: FormData): { bytes: Buffer; type: string } => {
-  const boundary = `----peregrinus${randomUUID().replaceAll('-', '')}`
+  const boundary = `----postmano${randomUUID().replaceAll('-', '')}`
   const parts = [...form.entries()].map(
     ([name, value]) =>
       `--${boundary}\r\ncontent-disposition: form-data; name="${quoted(name)}"\r\n\r\n${String(value)}\r\n`

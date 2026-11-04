@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: peregrinus, a web client for HTTP requests and API documentation for the Lets team. One stack, plain CloudFormation.
+Description: postmano, a web client for HTTP requests and API documentation for the Lets team. One stack, plain CloudFormation.
 
 # What the stack holds:
 #   - a DynamoDB table with the collections and environments (chunked, see docs/adr/0001);
@@ -7,8 +7,8 @@ Description: peregrinus, a web client for HTTP requests and API documentation fo
 #   - a private S3 bucket with the panel, behind CloudFront. The panel and the API share one origin: /api/* goes to
 #     the HTTP API and everything else to the bucket, so the panel needs no CORS;
 #   - a Cognito user pool federated with Google, with no passwords, for the company's Workspace accounts.
-# Deploying it is the pipeline's job (docs/deploy.md). Before the first deploy: the secret `peregrinus/google`
-# ({"clientSecret": "..."}), the SSM parameter /peregrinus/google/client-id, and the Mappings block of the account.
+# Deploying it is the pipeline's job (docs/deploy.md). Before the first deploy: the secret `postmano/google`
+# ({"clientSecret": "..."}), the SSM parameter /postmano/google/client-id, and the Mappings block of the account.
 
 Parameters:
   # The four below are the ones the LET'S pipeline hands over (`config.json`, written by buildspec.yml).
@@ -28,10 +28,10 @@ Parameters:
     Type: String
     Default: uselets.com,lets.delivery
     Description: Workspace domains that may sign in, separated by commas.
-  # Not a secret: the Google OAuth app's client id. The secret is in Secrets Manager as peregrinus/google.
+  # Not a secret: the Google OAuth app's client id. The secret is in Secrets Manager as postmano/google.
   GoogleClientId:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: /peregrinus/google/client-id
+    Default: /postmano/google/client-id
     Description: SSM parameter that holds the Google OAuth client id.
 
 # What differs per account. A new account needs its own block, even with empty values.
@@ -39,7 +39,7 @@ Mappings:
   EnvConfig:
     '761817249596':
       # The one deployment (an internal tool has no separate production), in the dev AWS account. The certificate is the one for *.uselets.com in us-east-1 (CloudFront requires that region).
-      DomainName: peregrinus.uselets.com
+      DomainName: postmano.uselets.com
       CertificateArn: arn:aws:acm:us-east-1:761817249596:certificate/a36f7ada-dbe5-467a-9e1f-0218e8cc0501
       # Empty: the zone is in another account, so the record is made by hand from the DistributionDomain output.
       HostedZoneId: ''
@@ -59,7 +59,7 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       Tags:
         - Key: project
-          Value: peregrinus
+          Value: postmano
       AttributeDefinitions:
         - AttributeName: pk
           AttributeType: S
@@ -79,9 +79,9 @@ Resources:
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
-      UserPoolName: !Sub peregrinus-${AWS::AccountId}
+      UserPoolName: !Sub postmano-${AWS::AccountId}
       UserPoolTags:
-        project: peregrinus
+        project: postmano
       # Nobody signs up and nobody is created by hand: a Google sign-in creates its own profile.
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
@@ -99,7 +99,7 @@ Resources:
       ProviderType: Google
       ProviderDetails:
         client_id: !Ref GoogleClientId
-        client_secret: '{{resolve:secretsmanager:peregrinus/google:SecretString:clientSecret}}'
+        client_secret: '{{resolve:secretsmanager:postmano/google:SecretString:clientSecret}}'
         authorize_scopes: openid email profile
       AttributeMapping:
         email: email
@@ -111,7 +111,7 @@ Resources:
     Type: AWS::Cognito::UserPoolDomain
     Properties:
       UserPoolId: !Ref UserPool
-      Domain: !Sub peregrinus-${AWS::AccountId}
+      Domain: !Sub postmano-${AWS::AccountId}
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -168,20 +168,20 @@ Resources:
   FunctionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/peregrinus-${AWS::AccountId}-api
+      LogGroupName: !Sub /aws/lambda/postmano-${AWS::AccountId}-api
       RetentionInDays: 30
 
   Function:
     Type: AWS::Lambda::Function
     DependsOn: FunctionLogs
     Properties:
-      FunctionName: !Sub peregrinus-${AWS::AccountId}-api
+      FunctionName: !Sub postmano-${AWS::AccountId}-api
       Runtime: nodejs24.x
       Architectures: [arm64]
       Handler: index.handler
       Tags:
         - Key: project
-          Value: peregrinus
+          Value: postmano
       # API Gateway cuts an integration at 30 s; the proxy's own timeout is 25 s.
       Timeout: 29
       MemorySize: 512
@@ -200,10 +200,10 @@ Resources:
   HttpApi:
     Type: AWS::ApiGatewayV2::Api
     Properties:
-      Name: !Sub peregrinus-${AWS::AccountId}
+      Name: !Sub postmano-${AWS::AccountId}
       ProtocolType: HTTP
       Tags:
-        project: peregrinus
+        project: postmano
 
   HttpApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -244,7 +244,7 @@ Resources:
     Properties:
       Tags:
         - Key: project
-          Value: peregrinus
+          Value: postmano
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -259,7 +259,7 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub peregrinus-${AWS::AccountId}
+        Name: !Sub postmano-${AWS::AccountId}
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -269,7 +269,7 @@ Resources:
   PanelRouter:
     Type: AWS::CloudFront::Function
     Properties:
-      Name: !Sub peregrinus-${AWS::AccountId}-panel
+      Name: !Sub postmano-${AWS::AccountId}-panel
       AutoPublish: true
       FunctionConfig:
         Comment: SPA fallback and /config.js
@@ -282,9 +282,9 @@ Resources:
               statusCode: 200,
               statusDescription: 'OK',
               headers: { 'content-type': { value: 'application/javascript' }, 'cache-control': { value: 'no-store' } },
-              body: 'window.__PEREGRINUS__ = ' + JSON.stringify({
+              body: 'window.__POSTMANO__ = ' + JSON.stringify({
                 apiUrl: '/api',
-                cognitoDomain: 'peregrinus-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com',
+                cognitoDomain: 'postmano-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com',
                 clientId: '${UserPoolClient}'
               })
             };
@@ -299,7 +299,7 @@ Resources:
   ApiRouter:
     Type: AWS::CloudFront::Function
     Properties:
-      Name: !Sub peregrinus-${AWS::AccountId}-api
+      Name: !Sub postmano-${AWS::AccountId}-api
       AutoPublish: true
       FunctionConfig:
         Comment: Strips the /api prefix
@@ -364,7 +364,7 @@ Resources:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
-        Name: !Sub peregrinus-${AWS::AccountId}-security
+        Name: !Sub postmano-${AWS::AccountId}-security
         SecurityHeadersConfig:
           StrictTransportSecurity:
             AccessControlMaxAgeSec: 31536000
@@ -436,7 +436,7 @@ Resources:
   PanelPublisher:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub peregrinus-${AWS::AccountId}-panel-publisher
+      FunctionName: !Sub postmano-${AWS::AccountId}-panel-publisher
       Runtime: nodejs24.x
       Architectures: [arm64]
       Handler: index.handler
@@ -445,7 +445,7 @@ Resources:
       Role: !GetAtt PanelPublisherRole.Arn
       Tags:
         - Key: project
-          Value: peregrinus
+          Value: postmano
       Code:
         ZipFile: |
           const https = require('https');
@@ -506,15 +506,15 @@ Resources:
   AlarmTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub peregrinus-${AWS::AccountId}-alarms
+      TopicName: !Sub postmano-${AWS::AccountId}-alarms
       Tags:
         - Key: project
-          Value: peregrinus
+          Value: postmano
 
   FunctionErrors:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub peregrinus-${AWS::AccountId}-api-errors
+      AlarmName: !Sub postmano-${AWS::AccountId}-api-errors
       AlarmDescription: The API function failed. Errors are unhandled ones; a refused request is not an error.
       Namespace: AWS/Lambda
       MetricName: Errors
@@ -532,7 +532,7 @@ Resources:
   FunctionNearTimeout:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub peregrinus-${AWS::AccountId}-api-near-timeout
+      AlarmName: !Sub postmano-${AWS::AccountId}-api-near-timeout
       AlarmDescription: A call took more than 25 seconds; the function stops at 29.
       Namespace: AWS/Lambda
       MetricName: Duration
@@ -550,7 +550,7 @@ Resources:
   ApiServerErrors:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub peregrinus-${AWS::AccountId}-http-5xx
+      AlarmName: !Sub postmano-${AWS::AccountId}-http-5xx
       AlarmDescription: The HTTP API answered 5xx.
       Namespace: AWS/ApiGateway
       MetricName: 5xx
@@ -607,4 +607,4 @@ Outputs:
     Value: !Ref AlarmTopic
   GoogleRedirectUri:
     Description: Add this to the Google OAuth app's authorized redirect URIs.
-    Value: !Sub https://peregrinus-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse
+    Value: !Sub https://postmano-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse

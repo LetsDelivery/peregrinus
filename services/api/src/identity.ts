@@ -1,4 +1,4 @@
-import { ForbiddenException, UnauthenticatedException } from '@peregrinus/core'
+import { ForbiddenException, UnauthenticatedException } from '@postmano/core'
 import { createRemoteJWKSet, errors, type JWTVerifyGetKey, jwtVerify } from 'jose'
 import { z } from 'zod'
 

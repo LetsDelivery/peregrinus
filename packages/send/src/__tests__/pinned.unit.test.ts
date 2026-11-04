@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 
-import { BlockedDestinationException } from '@peregrinus/core'
+import { BlockedDestinationException } from '@postmano/core'
 
 import { createPinnedFetcher } from '../pinned.js'
 
@@ -109,7 +109,7 @@ describe('createPinnedFetcher', () => {
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe('/target')
     expect(seen).toHaveLength(1)
-    expect(seen[0]?.headers['user-agent']).toBe('peregrinus')
+    expect(seen[0]?.headers['user-agent']).toBe('postmano')
     expect(seen[0]?.headers.accept).toBe('*/*')
   })
 

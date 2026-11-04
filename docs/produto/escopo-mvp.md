@@ -1,4 +1,4 @@
-# peregrinus: escopo do MVP
+# postmano: escopo do MVP
 
 Cliente de requisições HTTP para a web, para o time da Lets. É o básico do Postman mais a geração
 de documentação, sem o resto. Login só com a conta Google da empresa: quando a pessoa é desligada,
@@ -55,7 +55,7 @@ cofre, Terminal, Console, WebSocket, gRPC, Digest, Hawk, OAuth 1.0, Akamai, ASAP
 ## Decisões
 
 - Dados em DynamoDB, como nos outros backends da Lets. O Aurora do JiraIA existe por filtros
-  em qualquer campo e busca textual, que o peregrinus não tem.
+  em qualquer campo e busca textual, que o postmano não tem.
 - Painel em JavaScript puro com Vite, como o JiraIA.
 - Valores secretos de ambiente não vão para log nem para a documentação gerada.
 

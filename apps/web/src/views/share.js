@@ -1,4 +1,4 @@
-import { LANGUAGES } from '@peregrinus/docs'
+import { LANGUAGES } from '@postmano/docs'
 
 import { html } from '../lib/html.js'
 import { t } from '../lib/i18n.js'

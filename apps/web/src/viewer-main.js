@@ -1,4 +1,4 @@
-import { LANGUAGES, renderDocumentation, renderStandalone } from '@peregrinus/docs'
+import { LANGUAGES, renderDocumentation, renderStandalone } from '@postmano/docs'
 
 import { ApiError, api } from './lib/api.js'
 import { isLocal, logout, profile } from './lib/auth.js'
@@ -16,7 +16,7 @@ const view = { page: null, failure: null, who: null }
 const $ = (selector) => document.querySelector(selector)
 
 const shell = html`<header class="top">
-    <div class="top-left"><img class="logo" src="/wordmark-dark.svg" alt="peregrinus" height="36" /><strong id="viewer-title"></strong></div>
+    <div class="top-left"><img class="logo" src="/wordmark-dark.svg" alt="postmano" height="36" /><strong id="viewer-title"></strong></div>
     <div class="top-right" id="viewer-tools"></div>
   </header>
   <main class="viewer" id="viewer-body"></main>`
@@ -54,7 +54,7 @@ const options = () => ({ variables: view.page.variables, language: state.docsLan
 const draw = () => {
   setLocale(state.settings.language)
   applyTheme(state.settings.theme)
-  document.title = view.page ? `${view.page.title} · peregrinus` : 'peregrinus'
+  document.title = view.page ? `${view.page.title} · postmano` : 'postmano'
   $('#viewer-title').textContent = view.page?.title ?? ''
   mount($('#viewer-tools'), tools())
   mount($('#viewer-body'), body())

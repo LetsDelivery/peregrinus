@@ -1,4 +1,4 @@
-import { InvalidRequestException, publicationSchema } from '@peregrinus/core'
+import { InvalidRequestException, publicationSchema } from '@postmano/core'
 import { z } from 'zod'
 
 import {
