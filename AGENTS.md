@@ -59,7 +59,8 @@ as IPv6, a name that resolves to a private address, and a redirect to any of the
 
 | Command | What it does |
 |---|---|
-| `bun run api` | The API on 127.0.0.1:8280; authenticate with `x-local-user: <email>` |
+| `bun run up` | Everything, in one command: installs what is missing, then the API on :8280 and the panel on :5280. Ctrl+C stops both |
+| `bun run api` | Only the API on 127.0.0.1:8280; authenticate with `x-local-user: <email>` |
 | `bun run --cwd apps/web dev` | The panel on 127.0.0.1:5280 |
 | `bun run test:ci` | Biome, `tsc` and every test |
 | `bun run build` | `dist/lambda.zip` (upload it to the code bucket) and the panel in `apps/web/dist` |
