@@ -101,8 +101,8 @@ describe('draft and payload', () => {
 
   test('builds the address from the page origin and the slug', () => {
     // Act & Assert
-    expect(shareUrl('https://dev-peregrinus.uselets.com', 'abc_DEF-123')).toBe(
-      'https://dev-peregrinus.uselets.com/docs/abc_DEF-123'
+    expect(shareUrl('https://postmano.uselets.com', 'abc_DEF-123')).toBe(
+      'https://postmano.uselets.com/docs/abc_DEF-123'
     )
   })
 })

@@ -1,68 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
-      <stop offset="0" stop-color="#22305a"/>
-      <stop offset="1" stop-color="#121a2e"/>
-    </linearGradient>
-    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
-    <clipPath id="dome">
-      <path d="M112 274 C100 170 180 112 268 118 C328 122 360 168 360 224 C300 214 190 200 112 274 Z"/>
-    </clipPath>
-  </defs>
-
-  <rect id="tile-bg" width="512" height="512" rx="112" fill="url(#bg)"/>
-
-  <g id="icon" clip-path="url(#tile)">
-    <!-- cream throat / chest base -->
-    <path id="cream" d="M180 512 L180 270 L338 236 L348 298 C340 332 338 352 350 384 C372 424 450 440 540 462 L540 512 Z" fill="#f4efe3"/>
-    <path id="chest-shade" d="M350 384 C372 424 450 440 540 462 L540 482 C450 470 380 462 340 430 C336 410 340 396 350 384 Z" fill="#dcd4bf"/>
-    <g id="chest-bars" fill="#56729f">
-      <path d="M372 438 L398 452 L392 466 L366 452 Z"/>
-      <path d="M408 452 L436 462 L432 478 L404 468 Z"/>
-      <path d="M356 478 L384 492 L376 506 L350 492 Z"/>
-      <path d="M404 488 L436 498 L430 512 L398 504 Z"/>
+  <g id="icon">
+    <rect id="tile" width="512" height="512" rx="112" fill="#f93846"/>
+    <g id="letter" fill="none" stroke="#ffffff" stroke-width="66" stroke-linecap="round">
+      <path d="M144 110 V402"/>
+      <circle cx="264" cy="214" r="104"/>
     </g>
-
-    <!-- slate-blue hood, nape and back -->
-    <path id="hood" d="M-20 512 L-20 470 C50 440 96 390 102 300 C98 220 140 168 270 158 L342 232 L334 282 L258 284 C222 296 200 322 196 360 C192 410 200 460 182 512 Z" fill="#56729f"/>
-    <path id="hood-shade" d="M-20 512 L-20 470 C50 440 96 390 102 300 C100 250 112 215 140 190 C130 250 140 330 150 400 C158 450 150 480 120 512 Z" fill="#3f5686"/>
-
-    <!-- malar stripe (the moustache) -->
-    <path id="malar" d="M258 268 L328 270 C322 330 290 376 238 414 C222 366 226 316 258 268 Z" fill="#090c14"/>
-
-    <!-- beak: blue-grey with sharp hook -->
-    <g id="beak" transform="translate(336 270) scale(1.25) translate(-336 -270)">
-    <path id="beak-lower" d="M344 292 C372 296 392 306 400 320 L392 330 C380 324 360 320 340 314 Z" fill="#5f7a96"/>
-    <path id="beak-upper" d="M336 236 C372 234 406 252 418 290 C422 306 416 326 404 340 L402 318 C398 302 380 292 346 292 Z" fill="#9db4cc"/>
-    <path id="beak-shade" d="M346 292 C380 292 398 302 402 318 L404 340 C410 322 412 308 408 296 C396 300 372 300 346 292 Z" fill="#6c8aa9"/>
-    <!-- cere + nostril -->
-    <path id="cere" d="M330 236 L362 238 C372 252 368 270 358 282 L336 284 Z" fill="#f2c230"/>
-    <ellipse cx="352" cy="256" rx="4.5" ry="6" fill="#8a6a10"/>
-    <path d="M346 292 C380 292 398 302 402 318" fill="none" stroke="#2f4560" stroke-width="3" stroke-linecap="round"/>
-    </g>
-
-    <!-- eye -->
-    <circle id="eye-ring" cx="282" cy="260" r="25" fill="#f2c230"/>
-    <circle id="eye" cx="282" cy="261" r="16" fill="#0a0d14"/>
-    <circle cx="288" cy="254" r="5" fill="#ffffff"/>
-    <!-- fierce angled brow ridge -->
-    <path id="brow" d="M232 196 L336 196 L330 256 L304 250 L240 226 Z" fill="#2a3a62"/>
-
-    <!-- helmet -->
-    <g id="helmet">
-      <path d="M112 274 C100 170 180 112 268 118 C328 122 360 168 360 224 C300 214 190 200 112 274 Z" fill="#f93846"/>
-      <g clip-path="url(#dome)">
-        <path d="M100 290 C86 170 180 106 268 112 C204 140 172 205 200 290 Z" fill="#b92432"/>
-        <path d="M100 290 C190 214 300 224 372 238" fill="none" stroke="#b92432" stroke-width="30"/>
-      </g>
-      <path d="M338 214 L376 226 C378 233 368 236 352 234 L330 228 Z" fill="#b92432"/>
-      <path d="M222 150 C250 130 292 128 322 150" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="9" stroke-linecap="round"/>
-      <!-- Lets mark as a decal on the helmet: the three bars, no tile -->
-      <g id="lets-decal" fill="#ffffff">
-        <rect x="213" y="178" width="17" height="24" rx="8.5"/>
-        <rect x="236" y="166" width="17" height="36" rx="8.5"/>
-        <rect x="259" y="154" width="17" height="48" rx="8.5"/>
-      </g>
+    <g id="envelope">
+      <rect x="214" y="177" width="100" height="74" rx="11" fill="#ffffff"/>
+      <path d="M223 188 L264 220 L305 188" fill="none" stroke="#f93846" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
   </g>
 </svg>

@@ -107,11 +107,11 @@ export const EN = {
   'Seguir o sistema': 'Follow the system',
   'Claro': 'Light',
   'Escuro': 'Dark',
-  'Leve suas coleções para dentro e para fora do peregrinus.': 'Bring your collections into and out of peregrinus.',
+  'Leve suas coleções para dentro e para fora do postmano.': 'Bring your collections into and out of postmano.',
   'Importar coleção do Postman': 'Import a Postman collection',
   'Exportar a coleção aberta (JSON)': 'Export the open collection (JSON)',
-  'O JSON exportado é o do peregrinus. Para levar de volta ao Postman, use a exportação do Postman.':
-    'The exported JSON is peregrinus own. To take it back to Postman, use the Postman export.',
+  'O JSON exportado é o do postmano. Para levar de volta ao Postman, use a exportação do Postman.':
+    'The exported JSON is postmano own. To take it back to Postman, use the Postman export.',
   'Conta': 'Account',
   'Acesso': 'Access',
   'Modo local: sem login. Em produção, só contas Google da empresa.':

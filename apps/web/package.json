@@ -1,6 +1,6 @@
 {
-  "name": "@peregrinus/web",
-  "description": "Painel do peregrinus: cliente de requisições e documentação. JavaScript puro, sem framework.",
+  "name": "@postmano/web",
+  "description": "Painel do postmano: cliente de requisições e documentação. JavaScript puro, sem framework.",
   "version": "0.1.0",
   "type": "module",
   "private": true,

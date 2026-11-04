@@ -1,4 +1,4 @@
-const PREFS = 'peregrinus:prefs'
+const PREFS = 'postmano:prefs'
 
 const stored = () => {
   try {

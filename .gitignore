@@ -5,7 +5,7 @@ coverage
 .env.*
 *.log
 .DS_Store
-.peregrinus/
+.postmano/
 
 # Research notes taken from using the Postman app: kept on the author machine, not published.
 docs/produto/pesquisa-postman/

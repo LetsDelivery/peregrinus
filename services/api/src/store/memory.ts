@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@peregrinus/core'
+import { ConflictException, NotFoundException } from '@postmano/core'
 
 import type { Doc, DocSummary, DocumentStore, Kind, PutInput, Scope } from './types.js'
 

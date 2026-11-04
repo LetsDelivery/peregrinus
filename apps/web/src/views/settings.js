@@ -1,4 +1,4 @@
-import { LANGUAGES } from '@peregrinus/docs'
+import { LANGUAGES } from '@postmano/docs'
 
 import { html } from '../lib/html.js'
 import { t } from '../lib/i18n.js'
@@ -65,14 +65,14 @@ const themes = (state) => html`<h3>${t('Tema')}</h3>
   </fieldset>`
 
 const data = (state) => html`<h3>${t('Dados')}</h3>
-  <p class="hint">${t('Leve suas coleções para dentro e para fora do peregrinus.')}</p>
+  <p class="hint">${t('Leve suas coleções para dentro e para fora do postmano.')}</p>
   <div class="actions">
     <button class="ghost" data-action="pick-import">${t('Importar coleção do Postman')}</button>
     <button class="ghost" data-action="export-collection" ${state.collection ? '' : 'disabled'}>${t('Exportar a coleção aberta (JSON)')}</button>
   </div>
-  <p class="hint">${t('O JSON exportado é o do peregrinus. Para levar de volta ao Postman, use a exportação do Postman.')}</p>`
+  <p class="hint">${t('O JSON exportado é o do postmano. Para levar de volta ao Postman, use a exportação do Postman.')}</p>`
 
-const about = (state) => html`<h3>peregrinus</h3>
+const about = (state) => html`<h3>postmano</h3>
   <dl class="about">
     <dt>${t('Conta')}</dt><dd>${state.profile?.email ?? ''}</dd>
     <dt>${t('Acesso')}</dt><dd>${state.profile?.local ? t('Modo local: sem login. Em produção, só contas Google da empresa.') : t('Conta Google da empresa')}</dd>

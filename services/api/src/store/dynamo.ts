@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
 
-import { ConflictException } from '@peregrinus/core'
+import { ConflictException } from '@postmano/core'
 
 import { nextVersion } from './memory.js'
 import type { Item, Key, TableClient } from './table.js'

@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises'
 import { BlockList, isIP } from 'node:net'
 
-import { BlockedDestinationException, InvalidRequestException } from '@peregrinus/core'
+import { BlockedDestinationException, InvalidRequestException } from '@postmano/core'
 
 /** Resolves a host name to every address it points to. Tests hand over their own. */
 export type Lookup = (hostname: string) => Promise<string[]>

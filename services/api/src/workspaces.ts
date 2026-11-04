@@ -9,7 +9,7 @@ import {
   type Role,
   type Workspace,
   workspaceSchema
-} from '@peregrinus/core'
+} from '@postmano/core'
 
 import { type Doc, type DocumentStore, GLOBAL } from './store/types.js'
 

@@ -1,4 +1,4 @@
-import type { Body, FormField } from '@peregrinus/core'
+import type { Body, FormField } from '@postmano/core'
 
 import type { RawBody, RawKeyValue } from './raw.js'
 import { type ImportContext, toKeyValue, toKeyValues, warn } from './text.js'

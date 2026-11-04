@@ -1,4 +1,4 @@
-import { ResponseTooLargeException, UpstreamException, UpstreamTimeoutException } from '@peregrinus/core'
+import { ResponseTooLargeException, UpstreamException, UpstreamTimeoutException } from '@postmano/core'
 
 import { assertPublicDestination, type Lookup, systemLookup } from './guard.js'
 import { createPinnedFetcher, type Fetcher } from './pinned.js'

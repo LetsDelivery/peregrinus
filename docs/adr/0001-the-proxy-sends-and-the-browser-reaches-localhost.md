@@ -8,7 +8,7 @@ Accepted.
 
 ## Context
 
-peregrinus is a web client for HTTP requests. A page in a browser cannot call most APIs: they do not send
+postmano is a web client for HTTP requests. A page in a browser cannot call most APIs: they do not send
 CORS headers for it, a page cannot set some headers, and it cannot keep cookies or use client certificates.
 A server can. But a server inside AWS that calls any URL a person types is a way into the VPC and to the cloud
 metadata service (`169.254.169.254`), and from the server `localhost` is the server itself.
@@ -24,7 +24,7 @@ metadata service (`169.254.169.254`), and from the server `localhost` is the ser
   redirect leaves the origin, only neutral headers follow (`Accept`, `Content-Type`, `User-Agent` and the like);
   `Authorization`, `Cookie`, API keys and any other custom header are dropped.
 - **From the browser.** For `localhost` and the person's own network. The panel builds the request with the same
-  code the server uses (`@peregrinus/send/browser`) and calls from the page, so the destination has to allow CORS
+  code the server uses (`@postmano/send/browser`) and calls from the page, so the destination has to allow CORS
   and the browser decides which headers it sends. Redirects are the browser's.
 
 **Access** is the company's Google Workspace account, through the stack's Cognito user pool, as in JiraIA. The API checks a verified address of an allowed domain and a matching `hd` claim, so a person

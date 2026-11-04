@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 
-import { ForbiddenException, UnauthenticatedException } from '@peregrinus/core'
+import { ForbiddenException, UnauthenticatedException } from '@postmano/core'
 import { createLocalJWKSet, exportJWK, generateKeyPair, type JWK, SignJWT } from 'jose'
 
 import { assertAdmitted, type Claims, cognitoIdentity, requireToken } from '../identity.js'

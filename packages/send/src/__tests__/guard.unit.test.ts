@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { BlockedDestinationException, InvalidRequestException } from '@peregrinus/core'
+import { BlockedDestinationException, InvalidRequestException } from '@postmano/core'
 
 import { assertPublicDestination, isBlockedAddress } from '../guard.js'
 
