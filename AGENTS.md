@@ -59,6 +59,8 @@ as IPv6, a name that resolves to a private address, and a redirect to any of the
 ## Commits and branches
 
 - Conventional commits with a required module scope (`commitlint.config.cjs`): `feat(send): ...`.
+- The pull request title is checked by the same rule, because the squash merge turns it into the commit on `master`.
+  Use a module scope there too, never a ticket id: `feat(web): ...`. Put the ticket in the body (`Refs: TEC-3584`).
 - `master` takes changes by pull request only.
 
 ## Commands
