@@ -1,4 +1,4 @@
-# One job per concern, and `ci-ok` as the single check master requires (the shape of LetsDelivery/JiraIA).
+# One job per concern, and `ci-ok` as the single check master requires (the shape the company's other repositories use).
 # Action versions are pinned to a commit, as there.
 name: CI
 

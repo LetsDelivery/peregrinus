@@ -1,6 +1,6 @@
 /**
  * Conventional commits, with the scope restricted to modules that exist in this monorepo.
- * Same rule as LetsDelivery/JiraIA: the scope is a module, not a feature.
+ * Same rule as the company's other repositories: the scope is a module, not a feature.
  */
 const SERVICES = ['api']
 const PACKAGES = ['core', 'postman', 'send', 'docs']

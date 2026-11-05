@@ -54,9 +54,9 @@ cofre, Terminal, Console, WebSocket, gRPC, Digest, Hawk, OAuth 1.0, Akamai, ASAP
 
 ## Decisões
 
-- Dados em DynamoDB, como nos outros backends da Lets. O Aurora do JiraIA existe por filtros
-  em qualquer campo e busca textual, que o postmano não tem.
-- Painel em JavaScript puro com Vite, como o JiraIA.
+- Dados em DynamoDB, como nos outros backends da Lets. O Aurora de outro sistema interno existe
+  por filtros em qualquer campo e busca textual, que o postmano não tem.
+- Painel em JavaScript puro com Vite, como nos outros sistemas internos.
 - Valores secretos de ambiente não vão para log nem para a documentação gerada.
 
 ## Workspaces (decidido em 2026-10-30)
@@ -67,7 +67,7 @@ cofre, Terminal, Console, WebSocket, gRPC, Digest, Hawk, OAuth 1.0, Akamai, ASAP
   **Leitor:** só lê, e não vê o valor das variáveis secretas.
 - Sempre há ao menos um administrador, e o mesmo e-mail não entra duas vezes.
 - Excluir um workspace exclui o que há dentro dele.
-- Fica para depois: convite com aceite, visibilidade "toda a empresa vê", papéis por coleção e transferir uma coleção entre workspaces.
+- Fica para depois: convite com aceite, papéis por coleção e transferir uma coleção entre workspaces. (A visibilidade "toda a empresa" já existe nas páginas publicadas: ADR 0002.)
 
 ## Idioma e configurações (decidido em 2026-10-30)
 
