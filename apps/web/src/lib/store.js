@@ -43,6 +43,8 @@ export const state = {
   environment: null,
   envDraft: null,
   selected: null,
+  /** The key of the request whose name is being edited in the sidebar, or null. */
+  renaming: null,
   current: null,
   parents: [],
   tab: 'query',

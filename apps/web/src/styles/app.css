@@ -32,6 +32,8 @@ details[open] > summary::before { content: '▾ '; }
 .request { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; background: none; border: 0; color: inherit; padding: 4px 6px; border-radius: 6px; cursor: pointer; font: inherit; }
 .request:hover { background: var(--panel); }
 .request.active { background: var(--panel); outline: 1px solid var(--accent); }
+.request.renaming { cursor: text; }
+.request.renaming input { flex: 1; min-width: 0; font: inherit; padding: 2px 6px; }
 .request .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .method { font: 600 10px var(--mono); min-width: 34px; color: var(--muted); }
 .m-get { color: var(--ok); } .m-post { color: var(--warn); } .m-delete { color: var(--accent); } .m-put, .m-patch { color: #6ea8ff; }

@@ -217,6 +217,8 @@ export const EN = {
     'You do not have access to this documentation. Ask whoever published it to allow your e-mail.',
   'Este link não existe ou foi removido.': 'This link does not exist or was removed.',
   'Não foi possível abrir a documentação.': 'The documentation could not be opened.',
+  'Nome da requisição': 'Request name',
+  'Nome alterado. Salve para gravar.': 'Renamed. Save to keep it.',
   'Conta em uso: {email}': 'Account in use: {email}',
   'Sair e entrar com outra conta': 'Sign out and sign in with another account',
   'O conteúdo parece ter credenciais e o link seria público.':

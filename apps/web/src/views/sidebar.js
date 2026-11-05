@@ -30,6 +30,11 @@ const node = (item, path, view) => {
       <div class="children">${item.children.map((child, index) => node(child, [...path, index], view))}</div>
     </details>`
   }
+  if (view.renaming === key) {
+    return html`<div class="request renaming">
+      ${badge(item.method.toUpperCase())}<input data-rename="${key}" value="${item.name}" aria-label="${t('Nome da requisição')}" />
+    </div>`
+  }
   const active = selected === key ? ' active' : ''
   return html`<button class="request${active}" data-select="${key}" title="${item.name}">
     ${badge(item.method.toUpperCase())}<span class="name">${item.name || item.url}</span>

@@ -23,7 +23,7 @@ const fail = (message: string): never => {
 
 const isListening = (port: number): Promise<boolean> =>
   new Promise((resolve) => {
-    const socket = connect({ port, host: 'localhost' })
+    const socket = connect({ port, host: '127.0.0.1' })
     socket.once('connect', () => {
       socket.destroy()
       resolve(true)
@@ -72,12 +72,20 @@ const stop = (code: number): never => {
   process.exit(code)
 }
 
-process.on('SIGINT', () => stop(0))
-process.on('SIGTERM', () => stop(0))
+process.on('SIGINT', () => stop(130))
+process.on('SIGTERM', () => stop(143))
+process.on('uncaughtException', (error) => {
+  process.stderr.write(`\n  up: ${error.message}\n`)
+  stop(1)
+})
 
-const ready = await Promise.all([waitFor(API_PORT), waitFor(PANEL_PORT)])
-if (!ready.every(Boolean)) {
-  process.stderr.write('\n  up: the API or the panel did not start in time\n')
+// A child that dies while starting must be named at once, not after the timeout.
+const diedFirst = Promise.race([api.exited.then(() => 'the API'), panel.exited.then(() => 'the panel')])
+const bothListening = Promise.all([waitFor(API_PORT), waitFor(PANEL_PORT)]).then((ready) => ready.every(Boolean))
+const outcome = await Promise.race([bothListening, diedFirst])
+if (outcome !== true) {
+  const why = outcome === false ? 'did not start in time' : `${outcome} exited before it was ready`
+  process.stderr.write(`\n  up: ${why}\n`)
   stop(1)
 }
 
