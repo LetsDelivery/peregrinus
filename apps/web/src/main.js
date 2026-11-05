@@ -5,6 +5,7 @@ import { sendFromBrowser } from './lib/browser-send.js'
 import { html, mount } from './lib/html.js'
 import { setLocale, t } from './lib/i18n.js'
 import { getPath, setPath } from './lib/paths.js'
+import { renameRequest } from './lib/rename.js'
 import { draftFromPublication, newDraft, payloadFromDraft, shareUrl } from './lib/share.js'
 import { canEdit, currentWorkspace, resolveSelection, savePrefs, scopes, sendOptions, state, ws } from './lib/store.js'
 import { applyTheme, isNight } from './lib/theme.js'
@@ -125,6 +126,7 @@ const resetWorkspaceData = () =>
     environment: null,
     envDraft: null,
     selected: null,
+    renaming: null,
     current: null,
     response: null,
     wsDraft: null,
@@ -163,6 +165,7 @@ const openCollection = async (id) => {
     version: loaded.version,
     collection: loaded.collection,
     selected: null,
+    renaming: null,
     current: null,
     response: null,
     saved: JSON.stringify(loaded.collection)
@@ -191,6 +194,53 @@ const isDirty = () => {
 
 /** Asks before leaving a collection with unsaved changes. */
 const mayLeave = () => !isDirty() || confirm(t('Há mudanças não salvas nesta coleção. Descartar?'))
+
+/** A double click on a request in the sidebar turns its name into a field. */
+const startRename = (key) => {
+  if (!canEdit()) {
+    return
+  }
+  state.renaming = key
+  draw()
+  $('input[data-rename]')?.select()
+}
+
+// While a mouse button is down, redrawing would replace the element under the pointer and the click would be lost.
+let pointerDown = false
+let drawAfterClick = false
+
+/** Puts the new name on the request, on the selected copy too, and says so only when it really changed. */
+const applyRename = (key, name) => {
+  commitCurrent()
+  if (!renameRequest(state.collection, key, name)) {
+    return
+  }
+  if (state.selected === key) {
+    state.current.name = name
+  }
+  toast(t('Nome alterado. Salve para gravar.'))
+}
+
+/** Enter or leaving the field keeps the name; Esc drops it. Whatever ends it, it runs once. */
+const finishRename = (value, keep, byKeyboard = false) => {
+  const key = state.renaming
+  if (key === null) {
+    return
+  }
+  state.renaming = null
+  const name = value.trim()
+  if (keep && name !== '') {
+    applyRename(key, name)
+  }
+  if (pointerDown) {
+    drawAfterClick = true
+    return
+  }
+  draw()
+  if (byKeyboard) {
+    $(`[data-select="${key}"]`)?.focus()
+  }
+}
 
 const select = (key) => {
   commitCurrent()
@@ -699,7 +749,20 @@ const SHORTCUT_KEYS = {
   k: () => $('#filter').focus()
 }
 
+/** F2 renames the selected request, unless the person is typing somewhere. */
+const renameByKey = (event) => {
+  if (event.key !== 'F2' || state.selected === null || event.target.matches?.('input, textarea, select')) {
+    return false
+  }
+  event.preventDefault()
+  startRename(state.selected)
+  return true
+}
+
 const onKey = (event) => {
+  if (renameByKey(event)) {
+    return
+  }
   if (event.key === 'Escape' && (state.menuOpen || state.wsMenuOpen || state.settingsOpen || state.shareOpen)) {
     Object.assign(state, { menuOpen: false, wsMenuOpen: false, settingsOpen: false, shareOpen: false })
     draw()
@@ -717,12 +780,51 @@ const wire = () => {
   document.addEventListener('click', click)
   document.addEventListener('change', change)
   document.addEventListener('input', (event) => {
-    if (event.target.matches('input:not([type=checkbox]):not([type=radio]):not(#filter), textarea')) {
+    if (
+      event.target.matches('input:not([type=checkbox]):not([type=radio]):not(#filter):not([data-rename]), textarea')
+    ) {
       change(event)
     }
   })
   // `toggle` does not bubble, so it is caught on the way down to remember which folders the person opened.
   document.addEventListener('toggle', rememberFolder, true)
+  document.addEventListener(
+    'mousedown',
+    () => {
+      pointerDown = true
+    },
+    true
+  )
+  document.addEventListener(
+    'mouseup',
+    () => {
+      pointerDown = false
+    },
+    true
+  )
+  document.addEventListener('click', () => {
+    if (drawAfterClick) {
+      drawAfterClick = false
+      draw()
+    }
+  })
+  document.addEventListener('dblclick', (event) => {
+    const key = event.target.closest?.('[data-select]')?.dataset.select
+    if (key !== undefined) {
+      startRename(key)
+    }
+  })
+  document.addEventListener('focusout', (event) => {
+    if (event.target.matches?.('[data-rename]')) {
+      finishRename(event.target.value, true)
+    }
+  })
+  document.addEventListener('keydown', (event) => {
+    if (event.target.matches?.('[data-rename]') && ['Enter', 'Escape'].includes(event.key)) {
+      event.preventDefault()
+      finishRename(event.target.value, event.key === 'Enter', true)
+    }
+  })
   document.addEventListener('focusin', (event) => event.target.matches?.('.share-url input') && event.target.select())
   document.addEventListener('keydown', onKey)
   $('#modal').addEventListener('click', (event) => {

@@ -1,13 +1,19 @@
 # AGENTS.md: postmano
 
-Rules for anyone, person or coding agent, changing this repository. They follow `LetsDelivery/JiraIA`;
-where it has a rule and this file is silent, its rule applies.
+Rules for anyone, person or coding agent, changing this repository. They follow the conventions of the company's other repositories;
+where one has a rule and this file is silent, that rule applies.
 
 ## Read first
 
-1. `docs/produto/escopo-mvp.md`: what is in, later and out.
-2. `docs/produto/levantamento-postman.md`: what was learned about Postman and what changed in the design.
+1. `CONTEXT.md`: the domain language. Use these words in code, docs and conversation.
+2. `docs/produto/escopo-mvp.md`: what is in, later and out.
 3. `docs/adr/`: every decision that would surprise a reader of the code.
+
+## Skills
+
+Skills live in `.agents/skills/` (`.claude/skills` is a symlink to it); see its `README.md`. To plan a change, run
+`/postmano-grill <what you want to grill>`: it questions the plan against `CONTEXT.md` and the ADRs, and writes
+the terms and decisions it settles. Before touching `template.yml` or any AWS resource, load `postmano-aws-skills`.
 
 ## Clean room
 
@@ -53,6 +59,8 @@ as IPv6, a name that resolves to a private address, and a redirect to any of the
 ## Commits and branches
 
 - Conventional commits with a required module scope (`commitlint.config.cjs`): `feat(send): ...`.
+- The pull request title is checked by the same rule, because the squash merge turns it into the commit on `master`.
+  Use a module scope there too, never a ticket id: `feat(web): ...`. Put the ticket in the body (`Refs: TEC-3584`).
 - `master` takes changes by pull request only.
 
 ## Commands

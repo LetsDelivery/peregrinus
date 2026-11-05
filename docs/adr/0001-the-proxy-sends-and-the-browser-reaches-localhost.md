@@ -1,10 +1,6 @@
-# 1. The proxy sends the request; the browser reaches localhost
+# ADR 0001: The proxy sends the request; the browser reaches localhost
 
-Date: 2026-10-29
-
-## Status
-
-Accepted.
+Status: accepted, 2026-10-29.
 
 ## Context
 
@@ -27,12 +23,12 @@ metadata service (`169.254.169.254`), and from the server `localhost` is the ser
   code the server uses (`@postmano/send/browser`) and calls from the page, so the destination has to allow CORS
   and the browser decides which headers it sends. Redirects are the browser's.
 
-**Access** is the company's Google Workspace account, through the stack's Cognito user pool, as in JiraIA. The API checks a verified address of an allowed domain and a matching `hd` claim, so a person
+**Access** is the company's Google Workspace account, through the stack's Cognito user pool, as in the company's other internal tools. The API checks a verified address of an allowed domain and a matching `hd` claim, so a person
 who leaves the company loses the access with the Workspace account. Locally there is no pool and `x-local-user`
 stands in, on 127.0.0.1 only.
 
-**Storage is DynamoDB**, as in the other Lets backends, not the Aurora of JiraIA. JiraIA needs filters on any
-field and full-text search over thousands of cards; this tool does not.
+**Storage is DynamoDB**, as in the other Lets backends, not Aurora (PostgreSQL), which another internal tool uses for filters on any
+field and full-text search; this tool has neither need.
 
 ## Consequences
 
