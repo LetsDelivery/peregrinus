@@ -43,7 +43,7 @@ variáveis.
 | Organização | Coleções com pastas, requisições salvas, abas abertas, histórico |
 | Ambientes | Variáveis `{{nome}}`, seletor de ambiente no topo, valores secretos mascarados |
 | Documentação | Aba Docs por requisição e página gerada a partir de uma coleção, com exemplos de resposta |
-| Troca | Importar coleção do Postman (v2.1) e cURL; exportar |
+| Troca | Importar do Postman (coleção v2.0 e v2.1, ambiente, globals, vários arquivos de uma vez e o .zip da exportação do workspace) e cURL; exportar |
 | Envio | Dois modos por requisição: pelo servidor (sem CORS, com proteção contra IP privado) e pelo browser (para localhost) |
 | Acesso | Login Google da empresa. **Workspaces**: cada pessoa tem o seu pessoal e pode criar os de time; coleções, ambientes e specs pertencem a um workspace. Papéis: administrador, editor e leitor |
 
