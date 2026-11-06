@@ -7,6 +7,7 @@ import { setLocale, t } from './lib/i18n.js'
 import { getPath, setPath } from './lib/paths.js'
 import { renameRequest } from './lib/rename.js'
 import { draftFromPublication, newDraft, payloadFromDraft, shareUrl } from './lib/share.js'
+import { clampSide, SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SIDE_STEP } from './lib/side-width.js'
 import { canEdit, currentWorkspace, resolveSelection, savePrefs, scopes, sendOptions, state, ws } from './lib/store.js'
 import { applyTheme, isNight } from './lib/theme.js'
 import { docs, standalone } from './views/docs.js'
@@ -33,6 +34,7 @@ const shell = html`<header class="top">
       </div>
       <div id="tree"></div>
     </aside>
+    <div class="side-resizer" id="side-resizer" role="separator" aria-orientation="vertical" tabindex="0"></div>
     <section class="work">
       <nav class="views" id="views"></nav>
       <div id="main"></div>
@@ -776,7 +778,56 @@ const onKey = (event) => {
   }
 }
 
+// ---- the width of the sidebar ----------------------------------------------------------------------------
+
+const setSide = (width) => {
+  state.sideWidth = clampSide(width, window.innerWidth)
+  $('.layout').style.setProperty('--side-width', `${state.sideWidth}px`)
+  const handle = $('#side-resizer')
+  handle.setAttribute('aria-valuenow', String(state.sideWidth))
+}
+
+/** Dragging the edge, or the arrow keys on it, sets the width; Home and End go to the limits; a double click resets. */
+const wireSideResizer = () => {
+  const handle = $('#side-resizer')
+  handle.setAttribute('aria-label', t('Largura da barra lateral'))
+  handle.setAttribute('aria-valuemin', String(SIDE_MIN))
+  handle.setAttribute('aria-valuemax', String(SIDE_MAX))
+  setSide(state.sideWidth)
+  handle.addEventListener('pointerdown', (event) => {
+    handle.setPointerCapture(event.pointerId)
+    handle.classList.add('dragging')
+  })
+  handle.addEventListener('pointermove', (event) => {
+    if (handle.hasPointerCapture(event.pointerId)) {
+      setSide(event.clientX - $('.layout').getBoundingClientRect().left)
+    }
+  })
+  handle.addEventListener('pointerup', () => {
+    handle.classList.remove('dragging')
+    savePrefs()
+  })
+  handle.addEventListener('dblclick', () => {
+    setSide(SIDE_DEFAULT)
+    savePrefs()
+  })
+  handle.addEventListener('keydown', (event) => {
+    const next = {
+      ArrowLeft: state.sideWidth - SIDE_STEP,
+      ArrowRight: state.sideWidth + SIDE_STEP,
+      Home: SIDE_MIN,
+      End: SIDE_MAX
+    }[event.key]
+    if (next !== undefined) {
+      event.preventDefault()
+      setSide(next)
+      savePrefs()
+    }
+  })
+}
+
 const wire = () => {
+  wireSideResizer()
   document.addEventListener('click', click)
   document.addEventListener('change', change)
   document.addEventListener('input', (event) => {

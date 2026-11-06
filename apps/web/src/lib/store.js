@@ -1,3 +1,5 @@
+import { clampSide } from './side-width.js'
+
 const PREFS = 'postmano:prefs'
 
 const stored = () => {
@@ -56,6 +58,7 @@ export const state = {
   open: new Set(),
   filter: '',
   sections: { collections: true, environments: true, specs: false, documents: true, ...stored().sections },
+  sideWidth: clampSide(stored().sideWidth),
   menuOpen: false,
   settingsOpen: false,
   settingsTab: 'general',
@@ -64,10 +67,10 @@ export const state = {
 
 export const savePrefs = () => {
   try {
-    const { workspaceId, collectionId, environmentId, settings, docsLanguage, sections } = state
+    const { workspaceId, collectionId, environmentId, settings, docsLanguage, sections, sideWidth } = state
     localStorage.setItem(
       PREFS,
-      JSON.stringify({ workspaceId, collectionId, environmentId, settings, docsLanguage, sections })
+      JSON.stringify({ workspaceId, collectionId, environmentId, settings, docsLanguage, sections, sideWidth })
     )
   } catch {
     // Storage can be off in a private window; the panel works without it.

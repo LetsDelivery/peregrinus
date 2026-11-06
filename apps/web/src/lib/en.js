@@ -70,6 +70,7 @@ export const EN = {
   'Mudar para o modo claro': 'Switch to light mode',
   'Mudar para o modo escuro': 'Switch to dark mode',
   'Modo claro': 'Light mode',
+  'Largura da barra lateral': 'Sidebar width',
   'Modo escuro': 'Dark mode',
   'Ambiente': 'Environment',
   'Administrador': 'Administrator',

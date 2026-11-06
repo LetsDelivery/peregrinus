@@ -19,7 +19,10 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var
 .top { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid var(--line); }
 .logo { height: 36px; width: auto; }
 .who { color: var(--muted); font-size: 12px; }
-.layout { display: grid; grid-template-columns: 300px 1fr; min-height: calc(100vh - 53px); }
+.layout { position: relative; display: grid; grid-template-columns: var(--side-width, 300px) 1fr; min-height: calc(100vh - 53px); }
+.side-resizer { position: absolute; top: 0; bottom: 0; left: calc(var(--side-width, 300px) - 3px); width: 6px; cursor: col-resize; z-index: 5; touch-action: none; }
+.side-resizer:hover, .side-resizer.dragging, .side-resizer:focus-visible { background: var(--accent); opacity: 0.55; outline: 0; }
+body:has(.side-resizer.dragging) { user-select: none; cursor: col-resize; }
 .side { border-right: 1px solid var(--line); padding: 12px; overflow: auto; max-height: calc(100vh - 53px); }
 .work { padding: 16px; min-width: 0; }
 .import { display: block; border: 1px dashed var(--line); border-radius: 10px; padding: 10px; margin-bottom: 12px; color: var(--muted); cursor: pointer; }
@@ -70,6 +73,7 @@ code { font-family: var(--mono); background: var(--panel); padding: 1px 5px; bor
 #toast:not(:empty) { padding: 10px 14px; }
 @media (max-width: 820px) {
   .layout { grid-template-columns: 1fr; }
+  .side-resizer { display: none; }
   .side { max-height: 40vh; border-right: 0; border-bottom: 1px solid var(--line); }
   .kv-row { grid-template-columns: auto 1fr auto; }
   .kv-row input:nth-child(3) { grid-column: 2 / 3; }
