@@ -1,3 +1,4 @@
+import { createMemoryAccessState } from './access-state.js'
 import { readConfig } from './config.js'
 import { corsHeaders } from './cors.js'
 import { createHandler } from './routes.js'
@@ -9,7 +10,15 @@ import { createFileStore } from './store/file.js'
  */
 const config = readConfig(process.env)
 const store = createFileStore(process.env.DATA_FILE ?? '.postmano/data.json')
-const handle = createHandler({ identity: undefined, allowedDomains: config.allowedDomains, localUsers: true, store })
+// Locks and last access live in memory here: a restart clears them, which is fine on this machine.
+const access = createMemoryAccessState()
+const handle = createHandler({
+  identity: undefined,
+  allowedDomains: config.allowedDomains,
+  localUsers: true,
+  store,
+  access
+})
 const PANEL_PORT = process.env.PANEL_PORT ?? '5280'
 const PANEL_ORIGINS = [`http://localhost:${PANEL_PORT}`, `http://127.0.0.1:${PANEL_PORT}`]
 

@@ -42,8 +42,15 @@ export const exampleSchema = z.object({
   language: z.string().optional()
 })
 
+/**
+ * A fixed identity for a folder or request, made when it is created or imported and kept when it is renamed or
+ * moved. A publication refers to what it shows by these ids. Optional only for collections saved before they existed.
+ */
+export const nodeIdSchema = z.string().min(1).max(64)
+
 export const requestSchema = z.object({
   kind: z.literal('request'),
+  id: nodeIdSchema.optional(),
   name: z.string(),
   description: z.string().optional(),
   /** Letters only: the method lands unquoted in places a pasted command or a CSS class would read it. */
@@ -59,6 +66,7 @@ export const requestSchema = z.object({
 
 export const folderSchema = z.object({
   kind: z.literal('folder'),
+  id: nodeIdSchema.optional(),
   name: z.string(),
   description: z.string().optional(),
   auth: authSchema,

@@ -2,6 +2,7 @@ import {
   AppException,
   authSchema,
   collectionSchema,
+  ensureIds,
   errorBody,
   errorStatus,
   InvalidRequestException,
@@ -113,7 +114,7 @@ const changeWorkspace: Handler = async ({ request, caller, deps, params }) => {
 const removeWorkspace: Handler = async ({ caller, deps, params }) => {
   const access = await requireRole(deps.store, params.ws ?? '', caller.email, 'admin')
   if (!access.workspace.personal) {
-    await removePublicationsOf(deps.store, access.doc.id, null)
+    await removePublicationsOf(deps, access.doc.id, null)
   }
   await deleteWorkspace(deps.store, access)
   return { deleted: params.ws }
@@ -155,7 +156,7 @@ const deleteDoc =
   async (context) => {
     const id = context.params.id ?? ''
     if (kind === 'collection') {
-      await removePublicationsOf(context.deps.store, scopeOf(context), id)
+      await removePublicationsOf(context.deps, scopeOf(context), id)
     }
     if (!(await context.deps.store.remove(scopeOf(context), kind, id))) {
       throw new NotFoundException(`The ${kind} "${id}" does not exist`)
@@ -179,6 +180,8 @@ const saveCollection =
   async (context) => {
     const body = parse(collectionBody, await readJson(context.request))
     const { now, id } = stamp(context.deps)
+    // Every folder and request leaves here with a fixed id, which a publication refers to.
+    ensureIds(body.collection)
     const doc = await context.deps.store.put(scopeOf(context), 'collection', {
       id: create ? id : (context.params.id ?? ''),
       name: body.collection.name,
@@ -187,8 +190,31 @@ const saveCollection =
       by: context.caller.email,
       now
     })
-    return describeDoc(doc)
+    return { ...describeDoc(doc), collection: body.collection }
   }
+
+/** Gives ids to a collection saved before they existed, so a selection can name its requests. Saves only if needed. */
+const ensureCollectionIds: Handler = async (context) => {
+  const id = context.params.id ?? ''
+  const doc = await context.deps.store.get(scopeOf(context), 'collection', id)
+  if (!doc) {
+    throw new NotFoundException(`The collection "${id}" does not exist`)
+  }
+  const collection = collectionSchema.parse(doc.value)
+  if (!ensureIds(collection)) {
+    return { ...describeDoc(doc), collection }
+  }
+  const { now } = stamp(context.deps)
+  const saved = await context.deps.store.put(scopeOf(context), 'collection', {
+    id,
+    name: collection.name,
+    value: collection,
+    expectedVersion: doc.version,
+    by: context.caller.email,
+    now
+  })
+  return { ...describeDoc(saved), collection }
+}
 
 const saveEnvironment =
   (create: boolean): Handler =>
@@ -221,6 +247,7 @@ const routes: Route[] = [
   route('POST', `${W}/collections`, inWorkspace('editor', saveCollection(true))),
   route('GET', `${W}/collections/:id`, inWorkspace('viewer', getDoc('collection', 'collection'))),
   route('PUT', `${W}/collections/:id`, inWorkspace('editor', saveCollection(false))),
+  route('POST', `${W}/collections/:id/ids`, inWorkspace('editor', ensureCollectionIds)),
   route('DELETE', `${W}/collections/:id`, inWorkspace('editor', deleteDoc('collection'))),
   route('GET', `${W}/environments`, inWorkspace('viewer', listDocs('environment'))),
   route('POST', `${W}/environments`, inWorkspace('editor', saveEnvironment(true))),
