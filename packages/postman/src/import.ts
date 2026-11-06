@@ -1,7 +1,7 @@
 import { type Collection, InvalidRequestException } from '@postmano/core'
 
 import { parseAuth } from './auth.js'
-import { toNode } from './items.js'
+import { MAX_EXAMPLE_CHARS, toNode } from './items.js'
 import { type RawCollection, rawCollectionSchema } from './raw.js'
 import { asText, describe, type ImportContext, type ImportWarning } from './text.js'
 
@@ -31,7 +31,7 @@ export const importPostmanCollection = (input: unknown): ImportResult => {
   }
   const raw = parsed.data
   assertSchema(raw.info.schema)
-  const context: ImportContext = { warnings: [], scripted: 0 }
+  const context: ImportContext = { warnings: [], scripted: 0, trimmed: 0 }
   const name = raw.info.name ?? 'Untitled collection'
   const collection: Collection = {
     name,
@@ -39,6 +39,12 @@ export const importPostmanCollection = (input: unknown): ImportResult => {
     auth: parseAuth(raw.auth, context, name),
     variables: toVariables(raw),
     items: raw.item.map((item) => toNode(item, context, ''))
+  }
+  if (context.trimmed > 0) {
+    context.warnings.push({
+      path: name,
+      message: `${context.trimmed} saved responses were longer than ${MAX_EXAMPLE_CHARS / 1000} KB and were cut`
+    })
   }
   if (context.scripted > 0) {
     context.warnings.push({

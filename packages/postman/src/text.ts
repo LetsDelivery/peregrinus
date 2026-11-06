@@ -3,7 +3,7 @@ import type { KeyValue } from '@postmano/core'
 import type { RawDescription, RawKeyValue } from './raw.js'
 
 export type ImportWarning = { path: string; message: string }
-export type ImportContext = { warnings: ImportWarning[]; scripted: number }
+export type ImportContext = { warnings: ImportWarning[]; scripted: number; trimmed: number }
 
 export const warn = (context: ImportContext, path: string, message: string): void => {
   context.warnings.push({ path, message })
