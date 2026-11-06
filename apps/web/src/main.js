@@ -1,4 +1,5 @@
 import './styles/app.css'
+import { hasAllIds } from '@postmano/core'
 import { ApiError, api } from './lib/api.js'
 import { completeLogin, login, logout, profile, signedIn } from './lib/auth.js'
 import { sendFromBrowser } from './lib/browser-send.js'
@@ -6,7 +7,7 @@ import { html, mount } from './lib/html.js'
 import { setLocale, t } from './lib/i18n.js'
 import { getPath, setPath } from './lib/paths.js'
 import { renameRequest } from './lib/rename.js'
-import { draftFromPublication, newDraft, payloadFromDraft, shareUrl } from './lib/share.js'
+import { draftFromPublication, newDraft, payloadFromDraft, shareUrl, toggleNode } from './lib/share.js'
 import { clampSide, SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SIDE_STEP } from './lib/side-width.js'
 import { canEdit, currentWorkspace, resolveSelection, savePrefs, scopes, sendOptions, state, ws } from './lib/store.js'
 import { applyTheme, isNight } from './lib/theme.js'
@@ -96,6 +97,10 @@ const draw = () => {
   )
   mount($('#main'), mainView())
   mount($('#modal'), html`${settings(state)}${share(state)}`)
+  // A folder with some of its requests ticked has no HTML attribute for that: it is set on the element.
+  for (const box of document.querySelectorAll('[data-state="mixed"]')) {
+    box.indeterminate = true
+  }
 }
 
 // ---- loading from the API -------------------------------------------------------------------------------
@@ -319,6 +324,19 @@ const send = async () => {
   draw()
 }
 
+/**
+ * The server gives every folder and request an id when it saves, and a publication refers to them. Take them in, and
+ * give the request on screen its own, or the next save would make a different one.
+ */
+const adoptSaved = (saved) => {
+  state.version = saved.version
+  state.collection = saved.collection
+  if (state.selected !== null) {
+    state.current = structuredClone(resolveSelection(state.collection, state.selected.split('.').map(Number)).request)
+  }
+  state.saved = JSON.stringify(state.collection)
+}
+
 const saveCollection = async () => {
   commitCurrent()
   try {
@@ -326,8 +344,7 @@ const saveCollection = async () => {
       collection: state.collection,
       version: state.version
     })
-    state.version = saved.version
-    state.saved = JSON.stringify(state.collection)
+    adoptSaved(saved)
     toast(t('Salvo.'))
   } catch (error) {
     fail(error)
@@ -396,18 +413,47 @@ const editing =
     return await action(...args)
   }
 
+/**
+ * Sharing needs a saved collection whose folders and requests all have ids, because a selection names them by id. A
+ * collection saved before ids existed gets them here, and is read again with them.
+ */
+const openShare = async () => {
+  if (isDirty()) {
+    return toast(t('Salve a coleção antes de compartilhar.'))
+  }
+  if (!hasAllIds(state.collection)) {
+    await api.post(ws(`/collections/${state.collectionId}/ids`), {})
+    await openCollection(state.collectionId)
+  }
+  await loadShares()
+  state.shareOpen = true
+  draw()
+}
+
 const loadShares = async () => {
   const { items } = await api.get(ws(`/docs?collectionId=${state.collectionId}`))
   state.shares = items.map(draftFromPublication)
 }
 
 /** Saves one link. A public link over text that looks like a credential asks first, and goes on only if told to. */
-const saveShare = async (index) => {
+/** What is missing before a link can be saved, said in the person's words; nothing when it is complete. */
+const missingInShare = (draft) => {
+  if (draft.mode === 'selection' && draft.selection.length === 0) {
+    return t('Marque ao menos uma requisição.')
+  }
+  return draft.expiryKind === 'date' && draft.expiryDate === '' ? t('Escolha a data de validade.') : null
+}
+
+const saveShare = async (index, { rotate = false } = {}) => {
   const draft = state.shares[index]
+  const missing = missingInShare(draft)
+  if (missing) {
+    return toast(missing)
+  }
   const send = (acknowledgeSecrets) => {
     const body = { ...payloadFromDraft(draft, state.collectionId), acknowledgeSecrets }
     return draft.slug
-      ? api.put(ws(`/docs/${draft.slug}`), { ...body, version: draft.version })
+      ? api.put(ws(`/docs/${draft.slug}`), { ...body, version: draft.version, rotatePassword: rotate })
       : api.post(ws('/docs'), body)
   }
   let result
@@ -419,6 +465,9 @@ const saveShare = async (index) => {
       throw error
     }
     result = await send(true)
+  }
+  if (result.password) {
+    state.issued[result.publication.slug] = result.password
   }
   // The link is saved by now. If the list cannot be reloaded, say so apart, and do not call the save a failure.
   await loadShares().catch((error) => fail(error))
@@ -447,13 +496,10 @@ const ACTIONS = {
   'save-env': editing(saveEnvironment),
   'use-env': useEnvironment,
   'export-docs': exportDocs,
-  'open-share': async () => {
-    await loadShares()
-    state.shareOpen = true
-    draw()
-  },
+  'open-share': openShare,
   'close-share': () => {
     state.shareOpen = false
+    state.issued = {}
     draw()
   },
   'new-share': () => {
@@ -465,6 +511,27 @@ const ACTIONS = {
     draw()
   },
   'save-share': ({ index }) => saveShare(Number(index)),
+  'rotate-share': async ({ index }) => {
+    const draft = state.shares[Number(index)]
+    if (
+      confirm(
+        t(
+          'Trocar a senha de "{name}"? A senha atual deixa de valer e quem está com a página aberta precisa entrar de novo.',
+          { name: draft.title }
+        )
+      )
+    ) {
+      await saveShare(Number(index), { rotate: true })
+    }
+  },
+  'copy-password': async ({ index }) => {
+    const password = state.issued[state.shares[Number(index)].slug]
+    if (!password) {
+      return
+    }
+    await navigator.clipboard.writeText(password)
+    toast(t('Senha copiada.'))
+  },
   'delete-share': async ({ index }) => {
     const draft = state.shares[Number(index)]
     if (confirm(t('Excluir o link "{name}"? Quem o tiver deixa de abrir a página.', { name: draft.title }))) {
@@ -697,7 +764,7 @@ const applyBinding = (target) => {
     setPath(state.wsDraft, wsBind, inputValue(target))
   } else if (shareBind) {
     setPath(state.shares, shareBind, inputValue(target))
-    if (shareBind.endsWith('.visibility')) {
+    if (['.visibility', '.mode', '.expiryKind'].some((field) => shareBind.endsWith(field))) {
       draw()
     }
   }
@@ -731,6 +798,10 @@ const change = guarded(async ({ target }) => {
     await switchEnvironment(target.value)
   } else if (target.dataset.bindMode) {
     state.current[target.dataset.bindMode] = structuredClone(DEFAULTS[target.dataset.bindMode][target.value])
+    draw()
+  } else if (target.dataset.shareTick !== undefined) {
+    const draft = state.shares[Number(target.dataset.shareTick)]
+    draft.selection = toggleNode(state.collection.items, draft.selection, target.dataset.node)
     draw()
   } else if (!applyBinding(target)) {
     applyPreference(target)

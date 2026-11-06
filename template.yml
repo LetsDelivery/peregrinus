@@ -74,6 +74,11 @@ Resources:
         PointInTimeRecoveryEnabled: true
       SSESpecification:
         SSEEnabled: true
+      # The wrong passwords of a published page (`ACCESS#<slug>`) carry `ttl` (epoch seconds) and clean themselves up.
+      # The documents have no such attribute, so they are never touched.
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # ---- sign-in ------------------------------------------------------------------------------------------
   UserPool:
@@ -162,6 +167,7 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:BatchWriteItem
                   - dynamodb:PutItem
+                  - dynamodb:UpdateItem
                   - dynamodb:DeleteItem
                 Resource: !GetAtt Table.Arn
 

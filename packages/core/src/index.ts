@@ -1,3 +1,5 @@
 export * from './exceptions.js'
+export * from './expiry.js'
+export * from './ids.js'
 export * from './model.js'
 export * from './publication.js'

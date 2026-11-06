@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import type { Fetcher } from '@postmano/send'
-
+import { createMemoryAccessState } from '../access-state.js'
 import type { ClaimsVerifier } from '../identity.js'
 import { type ApiDeps, createHandler } from '../routes.js'
 import { createMemoryStore } from '../store/memory.js'
@@ -24,6 +24,7 @@ const handlerFor = (overrides: Partial<ApiDeps> = {}, fetcher?: Fetcher) =>
     allowedDomains: DOMAINS,
     localUsers: false,
     store: createMemoryStore(),
+    access: createMemoryAccessState(),
     ...(fetcher
       ? {
           send: {

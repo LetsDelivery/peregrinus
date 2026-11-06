@@ -1,8 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 
-import { InvalidRequestException } from '../exceptions.js'
 import type { Collection, FolderNode, RequestNode } from '../model.js'
-import { findSecrets, folderNamesAt, HIDDEN, publicationSchema, publicView, viewerView } from '../publication.js'
+import {
+  findSecrets,
+  findSecretsInVariables,
+  HIDDEN,
+  isExternal,
+  publicationSchema,
+  publicView,
+  selectionHealth,
+  viewerView
+} from '../publication.js'
 
 const request = (overrides: Partial<RequestNode> = {}): RequestNode => ({
   kind: 'request',
@@ -48,7 +56,7 @@ describe('publicView', () => {
     })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     const text = JSON.stringify(view)
@@ -61,11 +69,50 @@ describe('publicView', () => {
 
   test('drops secret variables and keeps the public ones', () => {
     // Act
-    const view = publicView(collection(), [])
+    const view = publicView(collection(), null)
 
     // Assert
     expect(view.variables).toEqual([{ key: 'baseUrl', value: 'https://api.example.com', secret: false }])
     expect(JSON.stringify(view)).not.toContain('VARIABLE-SECRET')
+  })
+
+  test('with a selection, keeps only the variables the shown requests use, and no description', () => {
+    // Arrange
+    const input = collection({
+      description: 'INTERNAL NOTES',
+      variables: [
+        { key: 'baseUrl', value: 'https://api.example.com', secret: false },
+        { key: 'internalAdminUrl', value: 'https://admin.corp.internal', secret: false }
+      ],
+      items: [request({ id: 'r1' }), request({ id: 'r2', name: 'Admin', url: '{{internalAdminUrl}}/x' })]
+    })
+
+    // Act
+    const view = publicView(input, ['r1'])
+    const whole = publicView(input, null)
+
+    // Assert
+    expect(view.variables.map((variable) => variable.key)).toEqual(['baseUrl'])
+    expect(view.description).toBeUndefined()
+    expect(whole.variables).toHaveLength(2)
+    expect(whole.description).toBe('INTERNAL NOTES')
+  })
+
+  test('finds a credential in the value of a variable that would be published, and ignores the ones that never are', () => {
+    // Arrange
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop'
+    const variables = [
+      { key: 'adminHeader', value: jwt, secret: false },
+      { key: 'host', value: 'dev.example.com', secret: false },
+      { key: 'apiToken', value: jwt, secret: false },
+      { key: 'other', value: jwt, secret: true }
+    ]
+
+    // Act
+    const found = findSecretsInVariables(variables, 'environment Dev')
+
+    // Assert
+    expect(found).toEqual([{ path: 'environment Dev/adminHeader', kind: 'a JWT' }])
   })
 
   test('hides the value of credential headers, query parameters and form fields, and of cookies in saved responses', () => {
@@ -103,7 +150,7 @@ describe('publicView', () => {
     })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     const text = JSON.stringify(view)
@@ -124,39 +171,84 @@ describe('publicView', () => {
     const before = JSON.stringify(input)
 
     // Act
-    publicView(input, [])
+    publicView(input, null)
 
     // Assert
     expect(JSON.stringify(input)).toBe(before)
   })
 
-  test('publishes one folder as if it were the collection, with the kind of auth that applies to it', () => {
-    // Arrange
-    const inner = folder([request({ name: 'Inside' })], { name: 'Inner', description: 'Deep' })
-    const input = collection({
-      items: [folder([inner], { name: 'Outer', auth: { type: 'inherit' } }), request({ name: 'Elsewhere' })]
+  describe('with a selection', () => {
+    const tree = () =>
+      collection({
+        items: [
+          folder(
+            [
+              folder([request({ id: 'c', name: 'Deep one' }), request({ id: 'd', name: 'Deep two' })], {
+                id: 'f2',
+                name: 'Inner',
+                description: 'Deep'
+              }),
+              request({ id: 'b', name: 'Beta' })
+            ],
+            { id: 'f1', name: 'Outer' }
+          ),
+          request({ id: 'a', name: 'Alpha' }),
+          folder([request({ id: 'e', name: 'Elsewhere' })], { id: 'f3', name: 'Nothing ticked' })
+        ]
+      })
+
+    test('shows only the ticked requests and the folders around them, in their order', () => {
+      // Arrange
+      const input = tree()
+
+      // Act
+      const view = publicView(input, ['c', 'a'])
+
+      // Assert
+      expect(view.items.map((item) => item.name)).toEqual(['Outer', 'Alpha'])
+      const outer = view.items[0] as FolderNode
+      expect(outer.children.map((child) => child.name)).toEqual(['Inner'])
+      expect((outer.children[0] as FolderNode).children.map((child) => child.name)).toEqual(['Deep one'])
     })
 
-    // Act
-    const view = publicView(input, [0, 0])
+    test('leaves out a folder with nothing ticked and everything else of the collection', () => {
+      // Arrange
+      const input = tree()
 
-    // Assert
-    expect(view.name).toBe('Inner')
-    expect(view.description).toBe('Deep')
-    expect(view.items.map((item) => item.name)).toEqual(['Inside'])
-    expect(view.auth).toEqual({ type: 'bearer', token: '' })
-    expect(JSON.stringify(view)).not.toContain('Elsewhere')
-    expect(JSON.stringify(view)).not.toContain('COLLECTION-TOKEN')
-  })
+      // Act
+      const text = JSON.stringify(publicView(input, ['b']))
 
-  test('refuses a folder path that leads to nothing or to a request', () => {
-    // Arrange
-    const input = collection({ items: [folder([request()]), request({ name: 'Loose' })] })
+      // Assert
+      for (const absent of ['Elsewhere', 'Nothing ticked', 'Alpha', 'Deep one', 'Inner']) {
+        expect(text).not.toContain(absent)
+      }
+      expect(text).toContain('Beta')
+      expect(text).not.toContain('COLLECTION-TOKEN')
+    })
 
-    // Act & Assert
-    expect(() => publicView(input, [5])).toThrow(InvalidRequestException)
-    expect(() => publicView(input, [1])).toThrow(/does not lead to a folder/)
-    expect(() => publicView(input, [0, 0])).toThrow(InvalidRequestException)
+    test('shows the whole collection when there is no selection, and nothing for ids that are not there', () => {
+      // Arrange
+      const input = tree()
+
+      // Act
+      const whole = publicView(input, null)
+      const none = publicView(input, ['gone'])
+
+      // Assert
+      expect(whole.items.map((item) => item.name)).toEqual(['Outer', 'Alpha', 'Nothing ticked'])
+      expect(none.items).toEqual([])
+    })
+
+    test('counts what was deleted from the selection and what the collection gained since it was saved', () => {
+      // Arrange
+      const input = tree()
+
+      // Act
+      const health = selectionHealth(input, ['a', 'zzz'], ['a', 'b', 'c', 'd', 'gone-long-ago'])
+
+      // Assert
+      expect(health).toEqual({ removed: 1, added: 1 })
+    })
   })
 })
 
@@ -215,7 +307,7 @@ describe('publicView, credentials that no list names', () => {
     })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     const text = JSON.stringify(view)
@@ -242,7 +334,7 @@ describe('publicView, credentials that no list names', () => {
     })
 
     // Act
-    const text = JSON.stringify(publicView(input, []))
+    const text = JSON.stringify(publicView(input, null))
 
     // Assert
     for (const secret of ['AMZ-SECRET', 'APIM-SECRET', 'GOOG-SECRET', 'SIG-SECRET', 'REFRESH-SECRET']) {
@@ -269,7 +361,7 @@ describe('publicView, credentials that no list names', () => {
     })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     const text = JSON.stringify(view)
@@ -286,7 +378,7 @@ describe('publicView, credentials that no list names', () => {
     const input = collection({ items: [request({ body: { mode: 'raw', language: 'json', content } })] })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     expect(JSON.stringify(view)).toContain(JSON.stringify(content).slice(1, -1))
@@ -303,7 +395,7 @@ describe('publicView, credentials that no list names', () => {
     })
 
     // Act
-    const view = publicView(input, [])
+    const view = publicView(input, null)
 
     // Assert
     expect(view.variables.map((variable) => variable.key)).toEqual(['baseUrl'])
@@ -370,28 +462,19 @@ describe('findSecrets, what the redaction cannot see', () => {
     expect(findSecrets(input)).toEqual([])
   })
 
-  test('scans only the folder that would be published', () => {
+  test('scans only what the selection would show', () => {
     // Arrange
-    const leaky = request({ name: 'Leaky', description: 'password: hunter2hunter2' })
+    const leaky = request({ id: 'leaky', name: 'Leaky', description: 'password: hunter2hunter2' })
     const input = collection({
-      items: [folder([request({ name: 'Clean' })], { name: 'Public' }), folder([leaky], { name: 'Private' })]
+      items: [
+        folder([request({ id: 'clean', name: 'Clean' })], { name: 'Public' }),
+        folder([leaky], { name: 'Private' })
+      ]
     })
 
     // Act & Assert
-    expect(findSecrets(input, [0])).toEqual([])
-    expect(findSecrets(input, [1]).map((item) => item.path)).toEqual(['Leaky'])
-  })
-})
-
-describe('folderNamesAt', () => {
-  test('lists the names along the path, and refuses a path that leads nowhere', () => {
-    // Arrange
-    const input = collection({ items: [folder([folder([], { name: 'Inner' })], { name: 'Outer' })] })
-
-    // Act & Assert
-    expect(folderNamesAt(input, [0, 0])).toEqual(['Outer', 'Inner'])
-    expect(folderNamesAt(input, [])).toEqual([])
-    expect(() => folderNamesAt(input, [3])).toThrow(InvalidRequestException)
+    expect(findSecrets(input, ['clean'])).toEqual([])
+    expect(findSecrets(input, ['leaky']).map((item) => item.path)).toEqual(['Private / Leaky'])
   })
 })
 
@@ -402,7 +485,17 @@ describe('publicationSchema', () => {
     const bad = publicationSchema.safeParse({ collectionId: 'c1', title: 'API', visibility: 'everyone' })
 
     // Assert
-    expect(parsed).toMatchObject({ people: [], folderPath: [], environmentId: null, language: 'curl' })
+    expect(parsed).toMatchObject({ people: [], selection: null, environmentId: null, language: 'curl' })
     expect(bad.success).toBe(false)
+  })
+
+  test('knows `password` and calls it, with `link`, a page for people outside the company', () => {
+    // Act
+    const parsed = publicationSchema.safeParse({ collectionId: 'c1', title: 'API', visibility: 'password' })
+
+    // Assert
+    expect(parsed.success).toBe(true)
+    expect(['password', 'link'].every((v) => isExternal(v as 'link'))).toBe(true)
+    expect(['workspace', 'people', 'company'].some((v) => isExternal(v as 'link'))).toBe(false)
   })
 })

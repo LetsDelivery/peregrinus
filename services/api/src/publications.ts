@@ -1,77 +1,139 @@
 import {
+  type Access,
   type Collection,
   collectionSchema,
+  DEFAULT_EXPIRY,
+  type Expiry,
   ForbiddenException,
   findSecrets,
-  folderNamesAt,
+  findSecretsInVariables,
+  hasAllIds,
   InvalidRequestException,
+  isExternal,
+  MAX_SEEN,
   NotFoundException,
   type Publication,
-  publicVariables,
-  publicView,
+  type Role,
+  requestIds,
+  resolveExpiry,
   type SecretFinding,
   type StoredPublication,
+  selectionHealth,
   storedPublicationSchema,
-  UnauthenticatedException,
   UnsafeContentException,
-  type Variable,
-  variableSchema,
-  type Workspace,
-  workspaceSchema
+  type Visibility
 } from '@postmano/core'
-
-import { z } from 'zod'
-
-import type { Caller } from './identity.js'
+import { hashPassword, newPassword } from './access.js'
+import type { AccessState } from './access-state.js'
+import { environmentSchema } from './published.js'
 import { type Doc, type DocumentStore, GLOBAL } from './store/types.js'
-import { roleOf } from './workspaces.js'
 
 /**
- * Published documentation: a collection (or one folder of it) at an address that opens in the panel, as the
- * Swagger page of an API does, with its own rule for who may open it.
+ * Published documentation, as it is managed: made, changed, listed and taken down. Opening a page is in
+ * `published.ts`.
  *
- * The address holds a random slug, so it cannot be guessed, and the rule is still checked on every open: a leaked
- * link does not widen who can read it, except for `link`, which says so. A publication is kept in its workspace,
- * and a pointer in the global scope turns the slug back into the workspace, because the address names no workspace.
+ * A publication is a collection, whole or a selection of its requests, at an address that opens in the panel, with
+ * its own rule for who may open it and until when. The address holds a random slug, so it cannot be guessed. A
+ * publication is kept in its workspace, and a pointer in the global scope turns the slug back into the workspace,
+ * because the address names no workspace.
+ *
+ * A page with a password is for a customer outside the company, so only a workspace admin makes, changes or removes
+ * one. The password is made here, returned once, and only its hash is kept.
  */
-export type PublicationView = Publication & {
+export type Deps = { store: DocumentStore; access: AccessState }
+
+export type PublicationView = Pick<
+  StoredPublication,
+  'collectionId' | 'title' | 'visibility' | 'people' | 'selection' | 'environmentId' | 'language' | 'expiresAt'
+> & {
   slug: string
   version: number
   updatedAt: string
   updatedBy: string
+  /** A page with a password is the admins' alone: an editor sees it and may not touch it. */
+  adminOnly: boolean
+  passwordSetAt: string | null
+  lockedUntil: string | null
+  lastAccessAt: string | null
+  /** For a selection: how many ticked requests were deleted, and how many the collection gained since. */
+  health: { removed: number; added: number } | null
 }
 
-export type Published = {
-  title: string
-  collection: Collection
-  /** The non-secret variables the examples may fill in: the collection's, then the environment's on top. */
-  variables: Record<string, string>
-  language: Publication['language']
-  visibility: Publication['visibility']
-  updatedAt: string
+export type Saved = {
+  publication: PublicationView
+  warnings: SecretFinding[]
+  /** The access password, in the clear, only in the answer that made or changed it. */
+  password?: string
 }
 
 const stored = (doc: Doc): StoredPublication => storedPublicationSchema.parse(doc.value)
 
-const viewOf = (doc: Doc): PublicationView => ({
-  ...stored(doc),
-  slug: doc.id,
-  version: doc.version,
-  updatedAt: doc.updatedAt,
-  updatedBy: doc.updatedBy
-})
-
-export const listPublications = async (
+const readCollection = async (
   store: DocumentStore,
   workspaceId: string,
-  collectionId: string | null
+  id: string
+): Promise<Collection | undefined> => {
+  const doc = await store.get(workspaceId, 'collection', id)
+  return doc ? collectionSchema.parse(doc.value) : undefined
+}
+
+const healthOf = (publication: StoredPublication, collection: Collection | undefined): PublicationView['health'] =>
+  publication.selection !== null && collection
+    ? selectionHealth(collection, publication.selection, publication.seen)
+    : null
+
+/** What the panel gets of a stored publication: never the hash, plus what has to be read from elsewhere. */
+const present = async (
+  deps: Deps,
+  doc: Doc,
+  collection: Collection | undefined,
+  now: Date
+): Promise<PublicationView> => {
+  const publication = stored(doc)
+  const [locked, last] = await Promise.all([
+    publication.visibility === 'password' ? deps.access.lockedUntil(doc.id, now) : undefined,
+    deps.access.lastAccess(doc.id)
+  ])
+  return {
+    collectionId: publication.collectionId,
+    title: publication.title,
+    visibility: publication.visibility,
+    people: publication.people,
+    selection: publication.selection,
+    environmentId: publication.environmentId,
+    language: publication.language,
+    expiresAt: publication.expiresAt,
+    slug: doc.id,
+    version: doc.version,
+    updatedAt: doc.updatedAt,
+    updatedBy: doc.updatedBy,
+    adminOnly: publication.visibility === 'password',
+    passwordSetAt: publication.access?.setAt ?? null,
+    lockedUntil: locked?.toISOString() ?? null,
+    lastAccessAt: last?.toISOString() ?? null,
+    health: healthOf(publication, collection)
+  }
+}
+
+export const listPublications = async (
+  deps: Deps,
+  workspaceId: string,
+  collectionId: string | null,
+  now: Date
 ): Promise<PublicationView[]> => {
-  const summaries = await store.list(workspaceId, 'publication')
-  const docs = await Promise.all(summaries.map((summary) => store.get(workspaceId, 'publication', summary.id)))
-  return docs
-    .flatMap((doc) => (doc ? [viewOf(doc)] : []))
-    .filter((view) => collectionId === null || view.collectionId === collectionId)
-    .sort((a, b) => a.title.localeCompare(b.title))
+  const summaries = await deps.store.list(workspaceId, 'publication')
+  const docs = await Promise.all(summaries.map((summary) => deps.store.get(workspaceId, 'publication', summary.id)))
+  const wanted = docs
+    .flatMap((doc) => (doc ? [doc] : []))
+    .filter((doc) => collectionId === null || stored(doc).collectionId === collectionId)
+  const collections = new Map<string, Collection | undefined>()
+  for (const id of new Set(wanted.map((doc) => stored(doc).collectionId))) {
+    collections.set(id, await readCollection(deps.store, workspaceId, id))
+  }
+  const views = await Promise.all(
+    wanted.map((doc) => present(deps, doc, collections.get(stored(doc).collectionId), now))
+  )
+  return views.sort((a, b) => a.title.localeCompare(b.title))
 }
 
 const domainOf = (email: string): string => email.split('@')[1]?.toLowerCase() ?? ''
@@ -87,13 +149,44 @@ const checkPeople = (input: Publication, allowedDomains: readonly string[]): voi
   }
 }
 
+/** The values of the environment the page uses go into its examples, so they are scanned like the collection. */
+const environmentFindings = async (
+  store: DocumentStore,
+  workspaceId: string,
+  input: Publication
+): Promise<SecretFinding[]> => {
+  const doc = input.environmentId ? await store.get(workspaceId, 'environment', input.environmentId) : undefined
+  return doc ? findSecretsInVariables(environmentSchema.parse(doc.value).variables, `environment ${doc.name}`) : []
+}
+
 const checkEnvironment = async (store: DocumentStore, workspaceId: string, input: Publication): Promise<void> => {
   if (input.environmentId && !(await store.get(workspaceId, 'environment', input.environmentId))) {
     throw new InvalidRequestException(`environmentId: "${input.environmentId}" does not exist in this workspace`)
   }
 }
 
-type Checked = { warnings: SecretFinding[]; folderNames: string[] }
+/** A selection must name requests that exist, and the collection must have ids to be named by. */
+const checkSelection = (collection: Collection, selection: readonly string[] | null): void => {
+  if (selection === null) {
+    return
+  }
+  if (selection.length === 0) {
+    throw new InvalidRequestException('selection: tick at least one request, or publish the whole collection')
+  }
+  if (!hasAllIds(collection)) {
+    throw new InvalidRequestException('selection: the collection has items without an id; save it first')
+  }
+  if (requestIds(collection).length > MAX_SEEN) {
+    throw new InvalidRequestException(`selection: the collection has more than ${MAX_SEEN} requests; publish it whole`)
+  }
+  const known = new Set(requestIds(collection))
+  const unknown = selection.find((id) => !known.has(id))
+  if (unknown !== undefined) {
+    throw new InvalidRequestException(`selection: "${unknown}" is not a request of this collection`)
+  }
+}
+
+type Checked = { warnings: SecretFinding[]; seen: string[]; collection: Collection }
 
 /** Checks everything a publication points at, and what the page would show. Returns what looks like a credential. */
 const validate = async (
@@ -102,15 +195,20 @@ const validate = async (
   input: Publication,
   allowedDomains: readonly string[]
 ): Promise<Checked> => {
-  const doc = await store.get(workspaceId, 'collection', input.collectionId)
-  if (!doc) {
+  const collection = await readCollection(store, workspaceId, input.collectionId)
+  if (!collection) {
     throw new NotFoundException(`The collection "${input.collectionId}" does not exist in this workspace`)
   }
-  const collection = collectionSchema.parse(doc.value)
-  const folderNames = folderNamesAt(collection, input.folderPath)
+  checkSelection(collection, input.selection)
   checkPeople(input, allowedDomains)
   await checkEnvironment(store, workspaceId, input)
-  return { warnings: findSecrets(collection, input.folderPath), folderNames }
+  // Only a selection compares the collection with what it has seen; a page of the whole collection follows it.
+  const seen = input.selection === null ? [] : requestIds(collection)
+  const warnings = [
+    ...findSecrets(collection, input.selection),
+    ...(await environmentFindings(store, workspaceId, input))
+  ]
+  return { warnings, seen, collection }
 }
 
 const describeFindings = (findings: readonly SecretFinding[]): string =>
@@ -119,28 +217,71 @@ const describeFindings = (findings: readonly SecretFinding[]): string =>
     .map((finding) => `"${finding.path}" has ${finding.kind}`)
     .join('; ')
 
-/** A link with no sign-in over text that looks like a credential is refused, unless the author says to go on. */
+/** A page for people outside the company over text that looks like credentials is refused, unless the author goes on. */
 const guard = (input: Publication, findings: readonly SecretFinding[], acknowledged: boolean): void => {
-  if (input.visibility === 'link' && findings.length > 0 && !acknowledged) {
+  if (isExternal(input.visibility) && findings.length > 0 && !acknowledged) {
     throw new UnsafeContentException(
-      `This collection has text that looks like credentials (${describeFindings(findings)}). Take it out, or confirm to publish it with a public link`
+      `This collection has text that looks like credentials (${describeFindings(findings)}). Take it out, or confirm to publish it for people outside the company`
     )
+  }
+}
+
+/** Only a workspace admin touches a page with a password: not to make one, change it, nor move a page to or from it. */
+const assertMayManage = (role: Role, current: Visibility | undefined, next: Visibility | undefined): void => {
+  if ((current === 'password' || next === 'password') && role !== 'admin') {
+    throw new ForbiddenException('Only a workspace admin may create, change or remove a page with a password')
   }
 }
 
 export type Write = {
   workspaceId: string
+  role: Role
   input: Publication
+  /** Not sent: keep what it has (30 days for a new one). Sent: the new rule. */
+  expiry?: Expiry | undefined
+  /** Make a new password for a `password` page, which ends any lock and every open session. */
+  rotatePassword?: boolean | undefined
   by: string
   now: Date
   allowedDomains: readonly string[]
   acknowledgeSecrets: boolean
 }
 
-const recordOf = (write: Write, checked: Checked): StoredPublication => ({
+type Issued = { access: Access; password?: string }
+
+const issue = async (version: number, now: Date): Promise<Issued> => {
+  const password = newPassword()
+  return { access: await hashPassword(password, version, now), password }
+}
+
+/** The access a page has after a save: none off a password page, a new one when it becomes one or is renewed. */
+const accessAfter = async (
+  before: StoredPublication,
+  next: Visibility,
+  renew: boolean,
+  now: Date
+): Promise<Issued | undefined> => {
+  if (next !== 'password') {
+    return undefined
+  }
+  if (before.visibility !== 'password' || !before.access) {
+    return await issue(1, now)
+  }
+  return renew ? await issue(before.access.version + 1, now) : { access: before.access }
+}
+
+const recordOf = (
+  write: Write,
+  checked: Checked,
+  expiresAt: string | null,
+  access: Access | undefined
+): StoredPublication => ({
   ...write.input,
-  folderNames: checked.folderNames,
-  acknowledged: write.acknowledgeSecrets
+  seen: checked.seen,
+  expiresAt,
+  // Said yes to what was found at this save, not to whatever an editor adds later.
+  acknowledged: write.acknowledgeSecrets && checked.warnings.length > 0,
+  ...(access ? { access } : {})
 })
 
 const putPointer = async (store: DocumentStore, write: Write & { slug: string }): Promise<void> => {
@@ -155,173 +296,94 @@ const putPointer = async (store: DocumentStore, write: Write & { slug: string })
 }
 
 /** The pointer is written first: an address that answers is always backed by a page, and a failure leaves nothing. */
-export const createPublication = async (
-  store: DocumentStore,
-  write: Write & { slug: string }
-): Promise<{ publication: PublicationView; warnings: SecretFinding[] }> => {
-  const checked = await validate(store, write.workspaceId, write.input, write.allowedDomains)
+export const createPublication = async (deps: Deps, write: Write & { slug: string }): Promise<Saved> => {
+  assertMayManage(write.role, undefined, write.input.visibility)
+  const checked = await validate(deps.store, write.workspaceId, write.input, write.allowedDomains)
   guard(write.input, checked.warnings, write.acknowledgeSecrets)
-  await putPointer(store, write)
+  const expiresAt = resolveExpiry(write.expiry ?? DEFAULT_EXPIRY, write.now)
+  const issued = write.input.visibility === 'password' ? await issue(1, write.now) : undefined
+  await putPointer(deps.store, write)
   try {
-    const doc = await store.put(write.workspaceId, 'publication', {
+    const doc = await deps.store.put(write.workspaceId, 'publication', {
       id: write.slug,
       name: write.input.title,
-      value: recordOf(write, checked),
+      value: recordOf(write, checked, expiresAt, issued?.access),
       expectedVersion: null,
       by: write.by,
       now: write.now
     })
-    return { publication: viewOf(doc), warnings: checked.warnings }
+    const publication = await present(deps, doc, checked.collection, write.now)
+    return { publication, warnings: checked.warnings, ...(issued?.password ? { password: issued.password } : {}) }
   } catch (error) {
-    await store.remove(GLOBAL, 'publication', write.slug)
+    // The page and its address go together. A failed clean-up must not hide why the publish failed.
+    await deps.store.remove(GLOBAL, 'publication', write.slug).catch(() => undefined)
+    await deps.store.remove(write.workspaceId, 'publication', write.slug).catch(() => undefined)
     throw error
   }
 }
 
-/** A save also puts the pointer back if it is missing, so a page that lost it by a half-failed publish heals. */
+/**
+ * A save also puts the pointer back if it is missing, so a page that lost it by a half-failed publish heals. A
+ * password page that gets a new date gets a new password too: renewing never reopens the old one.
+ */
 export const updatePublication = async (
-  store: DocumentStore,
+  deps: Deps,
   write: Write & { slug: string; version: number }
-): Promise<{ publication: PublicationView; warnings: SecretFinding[] }> => {
-  const checked = await validate(store, write.workspaceId, write.input, write.allowedDomains)
+): Promise<Saved> => {
+  const current = await deps.store.get(write.workspaceId, 'publication', write.slug)
+  if (!current) {
+    throw new NotFoundException(`The publication "${write.slug}" does not exist in this workspace`)
+  }
+  const before = stored(current)
+  assertMayManage(write.role, before.visibility, write.input.visibility)
+  const checked = await validate(deps.store, write.workspaceId, write.input, write.allowedDomains)
   guard(write.input, checked.warnings, write.acknowledgeSecrets)
-  const doc = await store.put(write.workspaceId, 'publication', {
+  const expiresAt = write.expiry ? resolveExpiry(write.expiry, write.now) : before.expiresAt
+  const renew = write.rotatePassword === true || expiresAt !== before.expiresAt
+  const issued = await accessAfter(before, write.input.visibility, renew, write.now)
+  // Before the save: a failure here changes nothing, and one after it would lose a password nobody has seen yet.
+  if (issued?.password || (before.visibility === 'password' && write.input.visibility !== 'password')) {
+    await deps.access.clear(write.slug)
+  }
+  const doc = await deps.store.put(write.workspaceId, 'publication', {
     id: write.slug,
     name: write.input.title,
-    value: recordOf(write, checked),
+    value: recordOf(write, checked, expiresAt, issued?.access),
     expectedVersion: write.version,
     by: write.by,
     now: write.now
   })
-  if (!(await store.get(GLOBAL, 'publication', write.slug))) {
-    await putPointer(store, write)
+  if (!(await deps.store.get(GLOBAL, 'publication', write.slug))) {
+    await putPointer(deps.store, write)
   }
-  return { publication: viewOf(doc), warnings: checked.warnings }
+  const publication = await present(deps, doc, checked.collection, write.now)
+  return { publication, warnings: checked.warnings, ...(issued?.password ? { password: issued.password } : {}) }
 }
 
-/**
- * Takes a page down. The page must be in this workspace, or the address is not this workspace's to remove. The
- * pointer goes first: from then on the address answers 404, and what is left behind is only unreachable.
- */
-export const removePublication = async (store: DocumentStore, workspaceId: string, slug: string): Promise<void> => {
-  if (!(await store.get(workspaceId, 'publication', slug))) {
+/** The pointer goes first: from then on the address answers 404, and what is left behind is only unreachable. */
+const unpublish = async (deps: Deps, workspaceId: string, slug: string): Promise<void> => {
+  await deps.store.remove(GLOBAL, 'publication', slug)
+  await deps.store.remove(workspaceId, 'publication', slug)
+  await deps.access.forget(slug)
+}
+
+/** Takes a page down. It must be in this workspace, or the address is not this workspace's to remove. */
+export const removePublication = async (deps: Deps, role: Role, workspaceId: string, slug: string): Promise<void> => {
+  const doc = await deps.store.get(workspaceId, 'publication', slug)
+  if (!doc) {
     throw new NotFoundException(`The publication "${slug}" does not exist in this workspace`)
   }
-  await store.remove(GLOBAL, 'publication', slug)
-  await store.remove(workspaceId, 'publication', slug)
+  assertMayManage(role, stored(doc).visibility, undefined)
+  await unpublish(deps, workspaceId, slug)
 }
 
 /** Takes down every page of a workspace, or only those over one collection, for when what they show is deleted. */
 export const removePublicationsOf = async (
-  store: DocumentStore,
+  deps: Deps,
   workspaceId: string,
   collectionId: string | null
 ): Promise<void> => {
-  for (const view of await listPublications(store, workspaceId, collectionId)) {
-    await removePublication(store, workspaceId, view.slug)
-  }
-}
-
-const mayOpen = (publication: StoredPublication, workspace: Workspace, caller: Caller): boolean => {
-  const role = roleOf(workspace, caller.email)
-  if (role === 'admin' || role === 'editor') {
-    return true
-  }
-  switch (publication.visibility) {
-    case 'company':
-      return true
-    case 'workspace':
-      return role !== undefined
-    case 'people':
-      return publication.people.some((email) => email.toLowerCase() === caller.email.toLowerCase())
-    default:
-      return false
-  }
-}
-
-const assertMayOpen = async (
-  store: DocumentStore,
-  workspaceId: string,
-  publication: StoredPublication,
-  caller: Caller | undefined
-): Promise<void> => {
-  if (publication.visibility === 'link') {
-    return
-  }
-  if (!caller) {
-    throw new UnauthenticatedException('Sign in to open this documentation')
-  }
-  const workspace = await store.get(GLOBAL, 'workspace', workspaceId)
-  if (!workspace || !mayOpen(publication, workspaceSchema.parse(workspace.value), caller)) {
-    throw new ForbiddenException(`${caller.email} may not open this documentation`)
-  }
-}
-
-const toRecord = (variables: readonly Variable[]): Record<string, string> =>
-  Object.fromEntries(publicVariables(variables).map((variable) => [variable.key, variable.value]))
-
-const environmentSchema = z.object({ variables: z.array(variableSchema) })
-
-const environmentVariables = async (store: DocumentStore, workspaceId: string, id: string | null) => {
-  const doc = id ? await store.get(workspaceId, 'environment', id) : undefined
-  return doc ? toRecord(environmentSchema.parse(doc.value).variables) : {}
-}
-
-/**
- * What was approved when the page was published may have changed since. The folders must still be where they were
- * (a moved folder would show something else), and a public link must still be free of credentials, unless the author
- * said to go on. Either way the page answers as a missing one, and its author sees why on the next save.
- */
-const foldersMoved = (publication: StoredPublication, collection: Collection): boolean => {
-  try {
-    const names = folderNamesAt(collection, publication.folderPath)
-    return names.join('\u0000') !== publication.folderNames.join('\u0000')
-  } catch {
-    return true
-  }
-}
-
-const assertStillThere = (publication: StoredPublication, collection: Collection, missing: Error): void => {
-  if (foldersMoved(publication, collection)) {
-    throw missing
-  }
-  const leaks = publication.visibility === 'link' && !publication.acknowledged
-  if (leaks && findSecrets(collection, publication.folderPath).length > 0) {
-    throw missing
-  }
-}
-
-/** What the page at `slug` shows to `caller` (or to nobody). Everything secret is taken out before it returns. */
-export const openPublished = async (
-  store: DocumentStore,
-  slug: string,
-  caller: Caller | undefined
-): Promise<Published> => {
-  const missing = new NotFoundException('This documentation link does not exist, or was removed')
-  const pointer = await store.get(GLOBAL, 'publication', slug)
-  const workspaceId = (pointer?.value as { workspaceId: string } | undefined)?.workspaceId
-  const doc = workspaceId ? await store.get(workspaceId, 'publication', slug) : undefined
-  if (!workspaceId || !doc) {
-    throw missing
-  }
-  const publication = stored(doc)
-  await assertMayOpen(store, workspaceId, publication, caller)
-  const source = await store.get(workspaceId, 'collection', publication.collectionId)
-  if (!source) {
-    throw missing
-  }
-  const full = collectionSchema.parse(source.value)
-  assertStillThere(publication, full, missing)
-  const collection = publicView(full, publication.folderPath)
-  return {
-    title: publication.title,
-    collection,
-    variables: {
-      ...toRecord(collection.variables),
-      ...(await environmentVariables(store, workspaceId, publication.environmentId))
-    },
-    language: publication.language,
-    visibility: publication.visibility,
-    updatedAt: source.updatedAt
+  for (const view of await listPublications(deps, workspaceId, collectionId, new Date())) {
+    await unpublish(deps, workspaceId, view.slug)
   }
 }

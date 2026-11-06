@@ -1,7 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb'
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda'
-
+import { createAwsAccessState } from './aws-access.js'
 import { readConfig } from './config.js'
 import { cognitoIdentity } from './identity.js'
 import { createHandler } from './routes.js'
@@ -24,7 +24,8 @@ const handle = createHandler({
   identity: cognitoIdentity({ issuer: config.cognito.issuer, audience: config.cognito.clientId }),
   allowedDomains: config.allowedDomains,
   localUsers: false,
-  store: createDynamoStore(createAwsTable(documents, config.tableName))
+  store: createDynamoStore(createAwsTable(documents, config.tableName)),
+  access: createAwsAccessState(documents, config.tableName)
 })
 
 const toRequest = (event: APIGatewayProxyEventV2): Request => {
