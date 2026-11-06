@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: '@postmano/send/browser', replacement: `${source('send')}/browser.ts` },
+      { find: '@postmano/postman', replacement: `${source('postman')}/index.ts` },
       { find: '@postmano/docs', replacement: `${source('docs')}/index.ts` },
       { find: '@postmano/core', replacement: `${source('core')}/index.ts` }
     ]

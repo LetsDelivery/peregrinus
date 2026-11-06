@@ -13,7 +13,8 @@ const usedKeys = () => {
     ...readdirSync(join(SRC, 'views')).map((name) => join(SRC, 'views', name)),
     join(SRC, 'main.js'),
     join(SRC, 'viewer-main.js'),
-    join(SRC, 'lib', 'api.js')
+    join(SRC, 'lib', 'api.js'),
+    join(SRC, 'lib', 'import.js')
   ].filter((file) => file.endsWith('.js') && !file.endsWith('.test.js'))
   const keys = new Set()
   for (const file of files) {

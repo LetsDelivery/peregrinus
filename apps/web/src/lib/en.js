@@ -108,7 +108,7 @@ export const EN = {
   'Claro': 'Light',
   'Escuro': 'Dark',
   'Leve suas coleções para dentro e para fora do postmano.': 'Bring your collections into and out of postmano.',
-  'Importar coleção do Postman': 'Import a Postman collection',
+  'Importar do Postman': 'Import from Postman',
   'Exportar a coleção aberta (JSON)': 'Export the open collection (JSON)',
   'O JSON exportado é o do postmano. Para levar de volta ao Postman, use a exportação do Postman.':
     'The exported JSON is postmano own. To take it back to Postman, use the Postman export.',
@@ -148,10 +148,19 @@ export const EN = {
   'Filtrar coleções': 'Filter collections',
   'Filtrar': 'Filter',
   'Importar': 'Import',
-  'Importar coleção do Postman (Collection v2.1)': 'Import a Postman collection (Collection v2.1)',
-  'Importada, com {count} aviso(s): {message}': 'Imported, with {count} warning(s): {message}',
-  'Coleção importada.': 'Collection imported.',
-  'Esse arquivo não é um JSON de coleção do Postman.': 'That file is not a Postman collection JSON.',
+  'A coleção tem {size} MB depois de importar e o limite é {limit} MB. Divida a coleção no Postman e importe as partes.':
+    'The collection is {size} MB after the import and the limit is {limit} MB. Split the collection in Postman and import the parts.',
+  '{count} arquivo(s) do .zip ignorado(s): não são coleção nem ambiente.':
+    '{count} file(s) of the .zip skipped: they are neither a collection nor an environment.',
+  'Importar do Postman: coleções, ambientes, globals ou o .zip da exportação':
+    'Import from Postman: collections, environments, globals or the export .zip',
+  '{count} coleção(ões)': '{count} collection(s)',
+  '{count} ambiente(s)': '{count} environment(s)',
+  'Importado: {what}.': 'Imported: {what}.',
+  'Nada foi importado.': 'Nothing was imported.',
+  '{count} aviso(s): {message}': '{count} warning(s): {message}',
+  '{count} arquivo(s) não importado(s): {name} ({message})': '{count} file(s) not imported: {name} ({message})',
+  'Esse arquivo não é um JSON do Postman.': 'That file is not a Postman JSON.',
   'Nome da nova coleção': 'Name of the new collection',
   'Falha de rede.': 'Network failure.',
   'Salvo.': 'Saved.',
