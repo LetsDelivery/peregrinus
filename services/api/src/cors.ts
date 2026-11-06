@@ -8,6 +8,6 @@ export const API_METHODS = 'GET, POST, PUT, DELETE, OPTIONS'
 export const corsHeaders = (origin: string | null, panelOrigins: readonly string[]): Record<string, string> => ({
   ...(origin !== null && panelOrigins.includes(origin) ? { 'access-control-allow-origin': origin } : {}),
   vary: 'Origin',
-  'access-control-allow-headers': 'content-type, authorization, x-local-user',
+  'access-control-allow-headers': 'content-type, authorization, x-local-user, x-docs-token',
   'access-control-allow-methods': API_METHODS
 })

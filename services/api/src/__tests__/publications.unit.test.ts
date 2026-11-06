@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-
+import { createMemoryAccessState } from '../access-state.js'
 import type { ClaimsVerifier } from '../identity.js'
 import { createPublication } from '../publications.js'
 import { createHandler } from '../routes.js'
@@ -60,6 +60,7 @@ const ids = (...values: string[]) => {
 /** One store, a team workspace `team` (ana admin, edu editor, vera viewer), and cris, a company person outside it. */
 const setup = async () => {
   const store = createMemoryStore()
+  const access = createMemoryAccessState()
   const slugs = ids('slug-1', 'slug-2', 'slug-3', 'slug-4')
   const newId = ids('team', 'col-1', 'env-1', 'col-2')
   const handler = (person: Exclude<Person, 'nobody'>) =>
@@ -68,6 +69,7 @@ const setup = async () => {
       allowedDomains: ['uselets.com', 'lets.delivery'],
       localUsers: false,
       store,
+      access,
       newId,
       newSlug: slugs
     })
@@ -75,7 +77,8 @@ const setup = async () => {
     identity: verifierFor('x@uselets.com'),
     allowedDomains: ['uselets.com', 'lets.delivery'],
     localUsers: false,
-    store
+    store,
+    access
   })
   const call = async (who: Person, path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST') => {
     const headers: Record<string, string> = { 'content-type': 'application/json' }
@@ -108,7 +111,7 @@ const setup = async () => {
       { key: 'token', value: 'ENV-SECRET', secret: true }
     ]
   })
-  return { call, store }
+  return { call, store, access }
 }
 
 const publish = (overrides: Record<string, unknown> = {}) => ({
@@ -117,6 +120,22 @@ const publish = (overrides: Record<string, unknown> = {}) => ({
   visibility: 'company',
   ...overrides
 })
+
+/** The id the server gave to the request called `name` (every folder and request gets one when saved). */
+const requestIdByName = async (call: Awaited<ReturnType<typeof setup>>['call'], name: string): Promise<string> => {
+  const body = await (await call('ana', '/v1/workspaces/team/collections/col-1')).json()
+  const found: string[] = []
+  const walk = (items: { kind: string; id: string; name: string; children?: unknown[] }[]) => {
+    for (const item of items) {
+      if (item.kind === 'request' && item.name === name) {
+        found.push(item.id)
+      }
+      walk((item.children ?? []) as never)
+    }
+  }
+  walk(body.collection.items)
+  return found[0] ?? ''
+}
 
 describe('publishing a collection', () => {
   test('an editor publishes and gets an address made of a random slug; a viewer cannot', async () => {
@@ -135,7 +154,7 @@ describe('publishing a collection', () => {
         title: 'Shop API',
         visibility: 'company',
         language: 'curl',
-        folderPath: [],
+        selection: null,
         version: 1
       },
       warnings: []
@@ -151,6 +170,7 @@ describe('publishing a collection', () => {
       allowedDomains: ['uselets.com'],
       localUsers: false,
       store,
+      access: createMemoryAccessState(),
       newId: ids('team', 'col-1')
     })
     const send = (path: string, body: unknown, method = 'POST') =>
@@ -173,13 +193,13 @@ describe('publishing a collection', () => {
     expect(second.publication.slug).not.toBe(first.publication.slug)
   })
 
-  test('refuses what it cannot publish: an unknown collection, a bad folder, an unknown environment, bad people', async () => {
+  test('refuses what it cannot publish: an unknown collection, a selection that is not there, an unknown environment, bad people', async () => {
     // Arrange
     const { call } = await setup()
 
     // Act
     const noCollection = await call('ana', '/v1/workspaces/team/docs', publish({ collectionId: 'nope' }))
-    const badFolder = await call('ana', '/v1/workspaces/team/docs', publish({ folderPath: [9] }))
+    const badSelection = await call('ana', '/v1/workspaces/team/docs', publish({ selection: ['nope'] }))
     const noEnvironment = await call('ana', '/v1/workspaces/team/docs', publish({ environmentId: 'nope' }))
     const outsider = await call(
       'ana',
@@ -190,7 +210,7 @@ describe('publishing a collection', () => {
 
     // Assert
     expect(noCollection.status).toBe(404)
-    expect(badFolder.status).toBe(400)
+    expect(badSelection.status).toBe(400)
     expect(noEnvironment.status).toBe(400)
     expect(outsider.status).toBe(400)
     expect(await outsider.json()).toMatchObject({ error: { message: expect.stringContaining('x@gmail.com') } })
@@ -280,7 +300,8 @@ describe('who may open a page', () => {
         identity: verifierFor('x@uselets.com'),
         allowedDomains: ['uselets.com'],
         localUsers: false,
-        store: world.store
+        store: world.store,
+        access: world.access
       })
       return await handler(
         new Request('https://api.test/v1/docs/slug-1', { headers: { authorization: 'Bearer wrong' } })
@@ -347,16 +368,16 @@ describe('what a page carries', () => {
     expect(page).toMatchObject({ title: 'Shop API', visibility: 'company', language: 'curl' })
   })
 
-  test('publishes one folder alone, without the rest of the collection', async () => {
+  test('publishes a selection of requests alone, without the rest of the collection', async () => {
     // Arrange
     const world = await setup()
-    await world.call('ana', '/v1/workspaces/team/docs', publish({ folderPath: [0] }))
+    const mine = await requestIdByName(world.call, 'Get order')
+    await world.call('ana', '/v1/workspaces/team/docs', publish({ selection: [mine] }))
 
     // Act
     const page = await (await world.call('cris', '/v1/docs/slug-1')).json()
 
     // Assert
-    expect(page.collection.name).toBe('Orders')
     expect(JSON.stringify(page)).toContain('Get order')
     expect(JSON.stringify(page)).not.toContain('Reset')
     expect(JSON.stringify(page)).not.toContain('Admin')
@@ -537,23 +558,27 @@ describe('a page and the things it depends on', () => {
 
     // Act & Assert
     await expect(
-      createPublication(failing, {
-        workspaceId: 'w1',
-        slug: 's1',
-        input: {
-          collectionId: 'col-1',
-          title: 'T',
-          visibility: 'company',
-          people: [],
-          folderPath: [],
-          environmentId: null,
-          language: 'curl'
-        },
-        by: 'ana@uselets.com',
-        now: new Date(),
-        allowedDomains: ['uselets.com'],
-        acknowledgeSecrets: false
-      })
+      createPublication(
+        { store: failing, access: createMemoryAccessState() },
+        {
+          workspaceId: 'w1',
+          role: 'admin',
+          slug: 's1',
+          input: {
+            collectionId: 'col-1',
+            title: 'T',
+            visibility: 'company',
+            people: [],
+            selection: null,
+            environmentId: null,
+            language: 'curl'
+          },
+          by: 'ana@uselets.com',
+          now: new Date(),
+          allowedDomains: ['uselets.com'],
+          acknowledgeSecrets: false
+        }
+      )
     ).rejects.toThrow('disk full')
     expect(await store.get('GLOBAL', 'publication', 's1')).toBeUndefined()
   })
@@ -597,33 +622,6 @@ describe('a page and the things it depends on', () => {
     expect((await call('nobody', '/v1/docs/slug-1')).status).toBe(404)
     expect(await store.get('GLOBAL', 'publication', 'slug-1')).toBeUndefined()
     expect(await store.list('team', 'publication')).toEqual([])
-  })
-
-  test('a folder that moved no longer answers: the page does not show another folder in its place', async () => {
-    // Arrange
-    const { call } = await setup()
-    await call('ana', '/v1/workspaces/team/docs', publish({ visibility: 'link', folderPath: [0] }))
-    const admin = {
-      kind: 'folder',
-      name: 'Admin',
-      auth: { type: 'inherit' },
-      children: [request('Reset', { query: [], headers: [] })]
-    }
-    const orders = {
-      kind: 'folder',
-      name: 'Orders',
-      auth: { type: 'inherit' },
-      children: [request('Get order', { query: [], headers: [] })]
-    }
-
-    // Act
-    const before = await call('nobody', '/v1/docs/slug-1')
-    await editCollection(call, [admin, orders])
-    const after = await call('nobody', '/v1/docs/slug-1')
-
-    // Assert
-    expect(before.status).toBe(200)
-    expect(after.status).toBe(404)
   })
 
   test('a credential added after a public link was approved takes the page down until it is taken out', async () => {
