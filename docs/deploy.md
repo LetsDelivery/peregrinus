@@ -32,6 +32,9 @@ Mudança em `template.yml` pede um teste manual no CloudFormation antes do pull 
 change set e executar tudo até o fim. O lint passa em templates que falham no deploy. Diga no pull request que o
 teste foi feito.
 
+A versão com acesso de cliente muda o `template.yml` em dois pontos: o atributo TTL `ttl` na tabela e a permissão
+`dynamodb:UpdateItem` na role da Lambda. O change set deve terminar sem erro, e a tabela deve mostrar o TTL ativo.
+
 ## Depois do deploy
 
 1. Abrir `https://postmano.uselets.com`. Deve pedir login do Google.
@@ -39,7 +42,11 @@ teste foi feito.
 3. Criar uma coleção, uma requisição e enviar. Testar uma URL privada (por exemplo `http://169.254.169.254`):
    a resposta deve ser recusada pelo servidor.
 4. Publicar a documentação com visibilidade "link" e abrir o link em uma janela anônima. Deve abrir sem pedir login e sem nenhum segredo na página.
-5. Assinar o tópico `AlarmTopicArn` (saída da stack) com um e-mail ou um hook de chat. Sem assinante, os alarmes
+5. Acesso de cliente: com um admin do workspace, publicar uma coleção como "Cliente, com senha", selecionando só
+   algumas requisições. Copiar a senha (aparece uma vez). Em janela anônima, abrir o link: deve pedir a senha.
+   Uma senha errada deve avisar; depois de 5 erradas, bloquear por 15 minutos. A senha certa abre só o que foi
+   selecionado, sem segredos. Trocar a senha no painel deve destravar e invalidar a antiga.
+6. Assinar o tópico `AlarmTopicArn` (saída da stack) com um e-mail ou um hook de chat. Sem assinante, os alarmes
    não avisam ninguém.
 
 ## Remover uma pessoa

@@ -2,6 +2,9 @@
 
 Status: accepted, 2026-11-03.
 
+Extended by [ADR 0003](0003-customer-access-to-published-documentation.md): a fifth visibility `password`, a selection
+of requests in place of one folder, an expiry on every page, and a lockout. The folder rule below no longer applies.
+
 ## Context
 
 People want to open the documentation of a collection at an address, as they do with a Swagger page, without
