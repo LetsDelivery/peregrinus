@@ -4,6 +4,7 @@ import { InvalidRequestException, type Role, UnauthenticatedException } from '@p
 import type { SendDeps } from '@postmano/send'
 import type { z } from 'zod'
 
+import type { AccessState } from './access-state.js'
 import { assertAdmitted, type Caller, type ClaimsVerifier, requireToken } from './identity.js'
 import type { DocumentStore } from './store/types.js'
 import { requireRole } from './workspaces.js'
@@ -16,6 +17,8 @@ export type ApiDeps = {
   /** Hands the proxy its own fetch and resolver in tests; the system's otherwise. */
   send?: SendDeps
   store: DocumentStore
+  /** The wrong passwords, the locks and the last access of the published pages. Required: a lock must never be a no-op. */
+  access: AccessState
   now?: () => Date
   newId?: () => string
   /** The random part of a published page's address. Tests hand over a fixed one. */

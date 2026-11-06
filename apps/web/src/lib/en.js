@@ -70,6 +70,7 @@ export const EN = {
   'Mudar para o modo claro': 'Switch to light mode',
   'Mudar para o modo escuro': 'Switch to dark mode',
   'Modo claro': 'Light mode',
+  'Largura da barra lateral': 'Sidebar width',
   'Modo escuro': 'Dark mode',
   'Ambiente': 'Environment',
   'Administrador': 'Administrator',
@@ -194,7 +195,6 @@ export const EN = {
   'Pessoas específicas': 'Specific people',
   'Qualquer pessoa da empresa (com login)': 'Anyone in the company (signed in)',
   'Qualquer pessoa com o link (sem login)': 'Anyone with the link (no sign-in)',
-  'Coleção inteira': 'Whole collection',
   'Endereço': 'Address',
   'Copiar': 'Copy',
   'O endereço aparece depois de salvar.': 'The address shows up after you save.',
@@ -209,8 +209,6 @@ export const EN = {
   'Excluir link': 'Delete link',
   'Descartar': 'Discard',
   'Compartilhar a documentação': 'Share the documentation',
-  'Cada link tem a sua regra de acesso. A página acompanha a coleção: o que você edita aparece sem publicar de novo. Senhas, tokens e variáveis secretas nunca saem.':
-    'Each link has its own access rule. The page follows the collection: what you edit shows up without publishing again. Passwords, tokens and secret variables never leave.',
   'Esta coleção ainda não tem links.': 'This collection has no links yet.',
   '+ Novo link': '+ New link',
   'Esta coleção tem texto que parece credencial. Quem tiver o endereço vai ler.':
@@ -236,5 +234,61 @@ export const EN = {
     'The chosen environment no longer exists; its variables will not be used.',
   'Há mudanças não salvas nesta coleção. Descartar?': 'This collection has unsaved changes. Discard them?',
   'Não foi possível entrar': 'Could not sign in',
-  'Tentar de novo': 'Try again'
+  'Tentar de novo': 'Try again',
+  'Cliente, com senha': 'Customer, with a password',
+  '{count} requisição(ões) nova(s) na coleção não estão publicadas.':
+    '{count} new request(s) in the collection are not published.',
+  '{count} requisição(ões) da seleção foram apagadas da coleção.':
+    '{count} request(s) of the selection were deleted from the collection.',
+  'Marque as requisições que aparecem. Marcar uma pasta marca o que há nela agora; o que for acrescentado depois não entra sozinho.':
+    'Tick the requests that show. Ticking a folder ticks what is in it now; what is added later does not join by itself.',
+  'Coleção inteira (acompanha o que for acrescentado)': 'Whole collection (follows what is added)',
+  'Seleção': 'Selection',
+  'Manter: vence em {date}': 'Keep: expires on {date}',
+  'Manter: sem validade': 'Keep: no expiry',
+  '7 dias': '7 days',
+  '30 dias': '30 days',
+  '90 dias': '90 days',
+  'Até uma data': 'Until a date',
+  'Sem validade': 'No expiry',
+  'Já expirou em {date}. Quem abre vê que o acesso expirou.':
+    'Expired on {date}. Whoever opens it sees that the access expired.',
+  'Expira em {days} dia(s), em {date}.': 'Expires in {days} day(s), on {date}.',
+  'Renovar uma página com senha também troca a senha: a nova aparece depois de salvar.':
+    'Renewing a page with a password also changes the password: the new one shows after saving.',
+  'Validade': 'Validity',
+  'Vale até o fim deste dia (horário UTC)': 'Valid until the end of this day (UTC)',
+  'Senha de acesso': 'Access password',
+  'Copiar senha': 'Copy password',
+  'Aparece só agora. Copie e envie ao cliente; se perder, troque a senha.':
+    'Shown only now. Copy it and send it to the customer; if lost, change the password.',
+  'Senha definida em {date}.': 'Password set on {date}.',
+  'Trocar senha': 'Change password',
+  'Bloqueado até {time} por tentativas erradas. Trocar a senha libera.':
+    'Locked until {time} after wrong attempts. Changing the password unlocks it.',
+  'Esta página é para quem não é da empresa: quem souber a senha abre, sem entrar. Confira que nada confidencial aparece nela.':
+    'This page is for people outside the company: whoever knows the password opens it, without signing in. Check that nothing confidential shows in it.',
+  'A senha é gerada ao salvar e aparece uma única vez.': 'The password is generated on save and shown only once.',
+  'Último acesso: {date}': 'Last access: {date}',
+  'Ainda sem acessos.': 'No access yet.',
+  'Só um admin do workspace muda uma página com senha.': 'Only a workspace admin changes a page with a password.',
+  'Cada link tem a sua regra de acesso e a sua validade. Senhas, tokens e variáveis secretas nunca saem.':
+    'Each link has its own access rule and validity. Passwords, tokens and secret variables never leave.',
+  'Salve a coleção antes de compartilhar.': 'Save the collection before sharing.',
+  'Marque ao menos uma requisição.': 'Tick at least one request.',
+  'Escolha a data de validade.': 'Pick the validity date.',
+  'Trocar a senha de "{name}"? A senha atual deixa de valer e quem está com a página aberta precisa entrar de novo.':
+    'Change the password of "{name}"? The current one stops working and whoever has the page open must sign in again.',
+  'Senha copiada.': 'Password copied.',
+  'Este acesso expirou. Peça um novo ao time.': 'This access expired. Ask the team for a new one.',
+  'Acesso bloqueado depois de muitas tentativas erradas. Tente de novo às {time}.':
+    'Access locked after too many wrong attempts. Try again at {time}.',
+  'Senha incorreta. Mais {left} tentativa(s) e o acesso é bloqueado por 15 minutos.':
+    'Wrong password. {left} more attempt(s) and access is locked for 15 minutes.',
+  'Não foi possível falar com o servidor. Tente de novo.': 'Could not reach the server. Try again.',
+  'Senha incorreta.': 'Wrong password.',
+  'Esta documentação pede a senha de acesso': 'This documentation asks for the access password',
+  'Entrar': 'Sign in',
+  'Esta documentação pede a senha de acesso.': 'This documentation asks for the access password.',
+  'Acesso bloqueado depois de muitas tentativas erradas.': 'Access locked after too many wrong attempts.'
 }

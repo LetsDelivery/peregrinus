@@ -1,45 +1,80 @@
 import { z } from 'zod'
 
-import { InvalidRequestException } from './exceptions.js'
-import type { Auth, Collection, FolderNode, KeyValue, Node, RequestNode, Variable } from './model.js'
+import { requestIds } from './ids.js'
+import {
+  type Auth,
+  type Collection,
+  type KeyValue,
+  type Node,
+  nodeIdSchema,
+  type RequestNode,
+  type Variable
+} from './model.js'
 
 /**
  * Who may open the page of a published collection, from the narrowest to the widest:
  * - `workspace`: the members of the workspace it belongs to;
  * - `people`: the addresses on the list (and the workspace's editors and admins, who manage it);
  * - `company`: anyone signed in with an account of an allowed domain;
- * - `link`: anyone who has the address, with no sign-in. The only one that needs no login.
+ * - `link`: anyone who has the address, with no sign-in;
+ * - `password`: anyone who knows the access password, for a customer outside the company. It needs no company login
+ *   either, so the content rules of `link` apply to it too.
  */
-export const visibilitySchema = z.enum(['workspace', 'people', 'company', 'link'])
+export const visibilitySchema = z.enum(['workspace', 'people', 'company', 'link', 'password'])
+
+/** The visibilities that reach people outside the company, who must not read what looks like a credential. */
+export const isExternal = (visibility: z.infer<typeof visibilitySchema>): boolean =>
+  visibility === 'link' || visibility === 'password'
 
 export const languageSchema = z.enum(['curl', 'javascript', 'python'])
 
-/** A published page: a collection (or one folder of it), the people who may open it, and what it shows. */
+/** A published page: a collection or a selection of it, the people who may open it, and what it shows. */
 export const publicationSchema = z.object({
   collectionId: z.string().min(1).max(64),
   title: z.string().min(1).max(120),
   visibility: visibilitySchema,
   people: z.array(z.string().email().max(254)).max(200).default([]),
-  /** Indexes down the tree to the folder to publish. Empty publishes the whole collection. */
-  folderPath: z.array(z.number().int().min(0)).max(20).default([]),
+  /**
+   * The ids of the requests to show, folders kept around them. `null` shows the whole collection and follows it:
+   * what is added later appears. A selection is explicit: what is added later stays out until it is ticked.
+   */
+  selection: z.array(nodeIdSchema).max(2000).nullable().default(null),
   /** The environment whose non-secret variables fill the examples, or none. */
   environmentId: z.string().min(1).max(64).nullable().default(null),
   language: languageSchema.default('curl')
 })
 
+/** The access password of a `password` publication, as kept: a scrypt hash with its salt, never the password. */
+export const accessSchema = z.object({
+  salt: z.string().min(1),
+  hash: z.string().min(1),
+  /** Goes up on every change of the password. */
+  version: z.number().int().min(1),
+  setAt: z.string().datetime()
+})
+
+/** The most requests a publication with a selection can follow: it remembers each one it has seen. */
+export const MAX_SEEN = 4000
+
 /**
- * A publication as the server keeps it: what the author sent, plus what the server worked out. `folderNames` are the
- * names along `folderPath` when it was saved, so a page notices when the folders under it were moved. `acknowledged`
- * is the author's yes to a public link over text that looked like a credential.
+ * A publication as the server keeps it: what the author sent, plus what the server worked out. `seen` is every
+ * request of the collection when it was saved, to tell what was added since. `expiresAt` is when it stops opening
+ * (UTC), or null. `access` exists only for a `password` publication. `acknowledged` is the author's yes to an
+ * external page over text that looked like a credential. `folderPath` is what pages saved before selections kept: a
+ * page that still has it and no selection is closed until it is saved again, so it never shows more than it did.
  */
 export const storedPublicationSchema = publicationSchema.extend({
-  folderNames: z.array(z.string()).max(20).default([]),
-  acknowledged: z.boolean().default(false)
+  seen: z.array(nodeIdSchema).max(MAX_SEEN).default([]),
+  expiresAt: z.string().datetime().nullable().default(null),
+  access: accessSchema.optional(),
+  acknowledged: z.boolean().default(false),
+  folderPath: z.array(z.number().int().min(0)).max(20).optional()
 })
 
 export type Visibility = z.infer<typeof visibilitySchema>
 export type Publication = z.infer<typeof publicationSchema>
 export type StoredPublication = z.infer<typeof storedPublicationSchema>
+export type Access = z.infer<typeof accessSchema>
 
 export const HIDDEN = '<hidden>'
 
@@ -145,66 +180,32 @@ const redactNode = (node: Node): Node =>
     ? { ...node, auth: redactAuth(node.auth), children: node.children.map(redactNode) }
     : redactRequest(node)
 
-export type Subtree = { folder: FolderNode; above: Auth[] }
-
-/** The folder at `path` and the auths above it, closest first. A path that leads nowhere is a 400. */
-export const findFolder = (collection: Collection, path: readonly number[]): Subtree => {
-  let items: Node[] = collection.items
-  let folder: FolderNode | undefined
-  const above: Auth[] = [collection.auth]
-  for (const index of path) {
-    const next = items[index]
-    if (next?.kind !== 'folder') {
-      throw new InvalidRequestException(`folderPath: ${path.join('.')} does not lead to a folder`)
-    }
-    if (folder) {
-      above.unshift(folder.auth)
-    }
-    folder = next
-    items = next.children
-  }
-  if (!folder) {
-    throw new InvalidRequestException('folderPath: is empty')
-  }
-  return { folder, above }
-}
-
-/** The auth that applies to a folder: its own, else the nearest above it. Only its kind is ever shown. */
-const effectiveFolderAuth = ({ folder, above }: Subtree): Auth =>
-  [folder.auth, ...above].find((auth) => auth.type !== 'inherit') ?? { type: 'none' }
-
-/** The names of the folders along `path`. A page keeps them to notice when the folders under it were moved. */
-export const folderNamesAt = (collection: Collection, path: readonly number[]): string[] => {
-  const names: string[] = []
-  let items: Node[] = collection.items
-  for (const index of path) {
-    const next = items[index]
-    if (next?.kind !== 'folder') {
-      throw new InvalidRequestException(`folderPath: ${path.join('.')} does not lead to a folder`)
-    }
-    names.push(next.name)
-    items = next.children
-  }
-  return names
-}
-
 export const publicVariables = (variables: readonly Variable[]): Variable[] =>
   variables
     .filter((variable) => !variable.secret && !nameIsSensitive(variable.key))
     .map((variable) => ({ ...variable }))
 
-/** The collection, or the folder to publish dressed as one: its own name, and the auth that applies to it. */
-const rootOf = (collection: Collection, folderPath: readonly number[]): Collection => {
-  if (folderPath.length === 0) {
-    return collection
-  }
-  const subtree = findFolder(collection, folderPath)
+/** The folders and requests that hold a ticked request, in their order. A folder with nothing ticked is left out. */
+const keepSelected = (items: readonly Node[], ids: ReadonlySet<string>): Node[] =>
+  items.flatMap((node): Node[] => {
+    if (node.kind === 'request') {
+      return node.id !== undefined && ids.has(node.id) ? [node] : []
+    }
+    const children = keepSelected(node.children, ids)
+    return children.length > 0 ? [{ ...node, children }] : []
+  })
+
+/** What the selection no longer matches (deleted) and what the collection gained since it was saved (new). */
+export const selectionHealth = (
+  collection: Collection,
+  selection: readonly string[],
+  seen: readonly string[]
+): { removed: number; added: number } => {
+  const now = new Set(requestIds(collection))
+  const known = new Set(seen)
   return {
-    name: subtree.folder.name,
-    ...(subtree.folder.description === undefined ? {} : { description: subtree.folder.description }),
-    auth: effectiveFolderAuth(subtree),
-    variables: collection.variables,
-    items: subtree.folder.children
+    removed: selection.filter((id) => !now.has(id)).length,
+    added: [...now].filter((id) => !known.has(id)).length
   }
 }
 
@@ -214,20 +215,25 @@ const rootOf = (collection: Collection, folderPath: readonly number[]): Collecti
  * ones named like a credential, the user and password of an address, the value of headers, query parameters and
  * form fields named like a credential, the same keys inside JSON bodies, and cookies in saved responses.
  * Free text (descriptions, non-JSON bodies) is the author's to check: `findSecrets` warns about it.
+ * With a selection, only the ticked requests and the folders around them are in it, and of the collection only the
+ * variables those requests use: its description and its other variables are about requests the page does not show.
  */
-export const publicView = (collection: Collection, folderPath: readonly number[]): Collection => {
-  const root = rootOf(collection, folderPath)
+export const publicView = (collection: Collection, selection: readonly string[] | null): Collection => {
+  const items = selection === null ? collection.items : keepSelected(collection.items, new Set(selection))
+  const own = publicVariables(collection.variables)
+  const used = JSON.stringify(items)
+  const shown = selection === null ? own : own.filter((variable) => used.includes(`{{${variable.key}}}`))
   return {
-    ...root,
-    auth: redactAuth(root.auth),
-    variables: publicVariables(root.variables),
-    items: root.items.map(redactNode)
+    ...(selection === null ? collection : { ...collection, description: undefined }),
+    auth: redactAuth(collection.auth),
+    variables: shown,
+    items: items.map(redactNode)
   }
 }
 
 /** What a viewer of a workspace reads of a collection: all of it, with every secret value emptied. */
 export const viewerView = (collection: Collection): Collection => ({
-  ...publicView(collection, []),
+  ...publicView(collection, null),
   variables: collection.variables.map((variable) =>
     variable.secret || nameIsSensitive(variable.key) ? { ...variable, value: '' } : variable
   )
@@ -251,6 +257,13 @@ const SECRET_PATTERNS: [string, RegExp][] = [
 export type SecretFinding = { path: string; kind: string }
 
 const kindOf = (text: string): string | undefined => SECRET_PATTERNS.find(([, pattern]) => pattern.test(text))?.[0]
+
+/** What looks like a credential in the values of variables that would be published (the others never leave). */
+export const findSecretsInVariables = (variables: readonly Variable[], where: string): SecretFinding[] =>
+  publicVariables(variables).flatMap((variable) => {
+    const kind = kindOf(variable.value)
+    return kind ? [{ path: `${where}/${variable.key}`, kind }] : []
+  })
 
 const rowTexts = (rows: readonly KeyValue[]): string[] => rows.flatMap((row) => [row.value, row.description ?? ''])
 
@@ -296,10 +309,10 @@ const scanNode = (node: Node, trail: string, found: SecretFinding[]): void => {
 /**
  * Looks for text that looks like a credential in what a page would show: it scans the view that `publicView` builds,
  * so it finds what the redaction did not catch. It cannot be sure, so it is a warning for the author, and the one
- * thing that stops a publish is a link with no sign-in over a collection that has any.
+ * thing that stops a publish is a page for people outside the company over a collection that has any.
  */
-export const findSecrets = (collection: Collection, folderPath: readonly number[] = []): SecretFinding[] => {
-  const view = publicView(collection, folderPath)
+export const findSecrets = (collection: Collection, selection: readonly string[] | null = null): SecretFinding[] => {
+  const view = publicView(collection, selection)
   const found: SecretFinding[] = []
   const rootKind = firstKind([view.description ?? '', ...view.variables.map((variable) => variable.value)])
   if (rootKind) {

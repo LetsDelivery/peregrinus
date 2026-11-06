@@ -1,3 +1,5 @@
+import { clampSide } from './side-width.js'
+
 const PREFS = 'postmano:prefs'
 
 const stored = () => {
@@ -33,6 +35,8 @@ export const state = {
   wsDraft: null,
   wsMenuOpen: false,
   shares: [],
+  /** The access passwords just made, by slug. They are shown once and dropped when the dialog closes. */
+  issued: {},
   shareOpen: false,
   collections: [],
   collectionId: stored().collectionId ?? null,
@@ -56,6 +60,7 @@ export const state = {
   open: new Set(),
   filter: '',
   sections: { collections: true, environments: true, specs: false, documents: true, ...stored().sections },
+  sideWidth: clampSide(stored().sideWidth),
   menuOpen: false,
   settingsOpen: false,
   settingsTab: 'general',
@@ -64,10 +69,10 @@ export const state = {
 
 export const savePrefs = () => {
   try {
-    const { workspaceId, collectionId, environmentId, settings, docsLanguage, sections } = state
+    const { workspaceId, collectionId, environmentId, settings, docsLanguage, sections, sideWidth } = state
     localStorage.setItem(
       PREFS,
-      JSON.stringify({ workspaceId, collectionId, environmentId, settings, docsLanguage, sections })
+      JSON.stringify({ workspaceId, collectionId, environmentId, settings, docsLanguage, sections, sideWidth })
     )
   } catch {
     // Storage can be off in a private window; the panel works without it.
@@ -108,6 +113,7 @@ export const currentWorkspace = () => state.workspaces.find((item) => item.id ==
 
 /** A viewer reads; an editor and an admin also change. The API enforces it, the panel just stops offering it. */
 export const canEdit = () => ['editor', 'admin'].includes(currentWorkspace()?.role)
+export const canAdmin = () => currentWorkspace()?.role === 'admin'
 
 /** What goes to the proxy with a request, from the settings. Redirects off means none are followed. */
 export const sendOptions = () => ({
