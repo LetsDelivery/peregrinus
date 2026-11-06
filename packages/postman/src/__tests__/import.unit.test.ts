@@ -227,4 +227,35 @@ describe('importPostmanCollection', () => {
     // Act & Assert
     expect(() => importPostmanCollection(input)).toThrow(/Not a Postman collection/)
   })
+
+  test('cuts a saved response over 100 KB and says how many were cut', () => {
+    // Arrange
+    const big = 'x'.repeat(150_000)
+    const input = {
+      info: { name: 'Big', schema: SCHEMA },
+      item: [
+        {
+          name: 'Dump',
+          request: { method: 'GET', url: 'https://api.example.com/dump' },
+          response: [
+            { name: 'huge', code: 200, status: 'OK', body: big },
+            { name: 'small', code: 200, status: 'OK', body: '{"ok":true}' }
+          ]
+        }
+      ]
+    }
+
+    // Act
+    const { collection, warnings } = importPostmanCollection(input)
+    const node = collection.items[0]
+    const examples = node?.kind === 'request' ? node.examples : []
+
+    // Assert
+    expect(examples[0]?.body.length).toBeLessThan(100_100)
+    expect(examples[0]?.body).toContain('cut when imported: the original had 150 KB')
+    expect(examples[1]?.body).toBe('{"ok":true}')
+    expect(warnings.map((warning) => warning.message)).toContain(
+      '1 saved responses were longer than 100 KB and were cut'
+    )
+  })
 })

@@ -6,12 +6,26 @@ import type { RawItem, RawResponse } from './raw.js'
 import { describe, type ImportContext, toKeyValues } from './text.js'
 import { parseUrl } from './url.js'
 
-const toExample = (response: RawResponse): Example => ({
+/**
+ * A saved response is a sample for the documentation. Some are whole files (one was 1.5 MB) and a collection has to
+ * fit in one request, so what goes past this is cut and says so.
+ */
+export const MAX_EXAMPLE_CHARS = 100_000
+
+const trimmedBody = (body: string, context: ImportContext): string => {
+  if (body.length <= MAX_EXAMPLE_CHARS) {
+    return body
+  }
+  context.trimmed += 1
+  return `${body.slice(0, MAX_EXAMPLE_CHARS)}\n… [cut when imported: the original had ${Math.round(body.length / 1000)} KB]`
+}
+
+const toExample = (response: RawResponse, context: ImportContext): Example => ({
   name: response.name ?? '',
   status: response.status ?? '',
   code: response.code ?? 0,
   headers: Array.isArray(response.header) ? toKeyValues(response.header) : [],
-  body: response.body ?? '',
+  body: trimmedBody(response.body ?? '', context),
   language: response._postman_previewlanguage ?? undefined
 })
 
@@ -34,7 +48,7 @@ const toRequest = (item: RawItem, context: ImportContext, path: string): Request
     headers: Array.isArray(request.header) ? toKeyValues(request.header) : [],
     body: parseBody(request.body, context, path),
     auth: parseAuth(request.auth ?? item.auth, context, path),
-    examples: (item.response ?? []).map(toExample)
+    examples: (item.response ?? []).map((response) => toExample(response, context))
   }
 }
 

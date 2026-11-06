@@ -133,7 +133,23 @@ describe('API', () => {
 
     // Assert
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ collection: { name: 'C' }, warnings: [] })
+    expect(await response.json()).toMatchObject({ kind: 'collection', collection: { name: 'C' }, warnings: [] })
+  })
+
+  test('imports a Postman environment through the same route and says what it is', async () => {
+    // Arrange
+    const handle = handlerFor()
+    const environment = { name: 'Dev', values: [{ key: 'token', value: 't', type: 'secret', enabled: true }] }
+
+    // Act
+    const response = await call(handle, '/v1/imports/postman', authed(environment))
+
+    // Assert
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      kind: 'environment',
+      environment: { name: 'Dev', variables: [{ key: 'token', value: 't', secret: true }] }
+    })
   })
 
   test('answers 400 for a body that is not JSON and for one that breaks the schema', async () => {

@@ -67,7 +67,7 @@ const themes = (state) => html`<h3>${t('Tema')}</h3>
 const data = (state) => html`<h3>${t('Dados')}</h3>
   <p class="hint">${t('Leve suas coleções para dentro e para fora do postmano.')}</p>
   <div class="actions">
-    <button class="ghost" data-action="pick-import">${t('Importar coleção do Postman')}</button>
+    <button class="ghost" data-action="pick-import">${t('Importar do Postman')}</button>
     <button class="ghost" data-action="export-collection" ${state.collection ? '' : 'disabled'}>${t('Exportar a coleção aberta (JSON)')}</button>
   </div>
   <p class="hint">${t('O JSON exportado é o do postmano. Para levar de volta ao Postman, use a exportação do Postman.')}</p>`

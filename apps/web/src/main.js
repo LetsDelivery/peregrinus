@@ -1,16 +1,19 @@
 import './styles/app.css'
 import { hasAllIds } from '@postmano/core'
+import { importPostman } from '@postmano/postman'
 import { ApiError, api } from './lib/api.js'
 import { completeLogin, login, logout, profile, signedIn } from './lib/auth.js'
 import { sendFromBrowser } from './lib/browser-send.js'
 import { html, mount } from './lib/html.js'
 import { setLocale, t } from './lib/i18n.js'
+import { importMessage } from './lib/import.js'
 import { getPath, setPath } from './lib/paths.js'
 import { renameRequest } from './lib/rename.js'
 import { draftFromPublication, newDraft, payloadFromDraft, shareUrl, toggleNode } from './lib/share.js'
 import { clampSide, SIDE_DEFAULT, SIDE_MAX, SIDE_MIN, SIDE_STEP } from './lib/side-width.js'
 import { canEdit, currentWorkspace, resolveSelection, savePrefs, scopes, sendOptions, state, ws } from './lib/store.js'
 import { applyTheme, isNight } from './lib/theme.js'
+import { readZipJson } from './lib/zip.js'
 import { docs, standalone } from './views/docs.js'
 import { editor } from './views/editor.js'
 import { environments } from './views/environments.js'
@@ -31,7 +34,7 @@ const shell = html`<header class="top">
     <aside class="side">
       <div class="side-tools">
         <input id="filter" type="search" />
-        <label class="icon-btn" id="import-btn"><span id="import-label"></span><input id="file" type="file" hidden accept=".json,application/json" /></label>
+        <label class="icon-btn" id="import-btn"><span id="import-label"></span><input id="file" type="file" hidden multiple accept=".json,.zip,application/json,application/zip" /></label>
       </div>
       <div id="tree"></div>
     </aside>
@@ -81,7 +84,7 @@ const applyStaticText = () => {
   $('#filter').placeholder = t('Filtrar coleções')
   $('#filter').setAttribute('aria-label', t('Filtrar'))
   $('#import-label').textContent = t('Importar')
-  $('#import-btn').title = t('Importar coleção do Postman (Collection v2.1)')
+  $('#import-btn').title = t('Importar do Postman: coleções, ambientes, globals ou o .zip da exportação')
 }
 
 const draw = () => {
@@ -258,22 +261,85 @@ const select = (key) => {
 
 // ---- actions --------------------------------------------------------------------------------------------
 
-const importFile = async (file) => {
-  try {
-    const { collection, warnings } = await api.post('/v1/imports/postman', JSON.parse(await file.text()))
-    const created = await api.post(ws('/collections'), { collection })
-    await loadLists()
-    await openCollection(created.id)
-    state.view = 'request'
-    draw()
-    toast(
-      warnings.length
-        ? t('Importada, com {count} aviso(s): {message}', { count: warnings.length, message: warnings[0].message })
-        : t('Coleção importada.')
-    )
-  } catch (error) {
-    fail(error instanceof SyntaxError ? new Error(t('Esse arquivo não é um JSON de coleção do Postman.')) : error)
+/** The JSON texts of the chosen files; a zip, which is what Postman exports a workspace as, gives every `.json` in it. */
+const textsOf = async (files) => {
+  const texts = []
+  for (const file of files) {
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      // A workspace zip has files that are neither (an archive index): they are skipped, not reported as failures.
+      texts.push(...(await readZipJson(await file.arrayBuffer())).map((entry) => ({ ...entry, inZip: true })))
+    } else {
+      texts.push({ name: file.name, text: await file.text() })
+    }
   }
+  return texts
+}
+
+/** What the API takes in one request is 5.5 MB; the collection must fit with some room. */
+const MAX_COLLECTION_BYTES = 5_000_000
+
+const assertFits = (collection) => {
+  const bytes = new Blob([JSON.stringify({ collection })]).size
+  if (bytes > MAX_COLLECTION_BYTES) {
+    throw new Error(
+      t(
+        'A coleção tem {size} MB depois de importar e o limite é {limit} MB. Divida a coleção no Postman e importe as partes.',
+        {
+          size: (bytes / 1e6).toFixed(1),
+          limit: MAX_COLLECTION_BYTES / 1e6
+        }
+      )
+    )
+  }
+}
+
+/**
+ * One export file in. It is read here, in the browser, not by the API: a big collection (the marketplaces one is 11 MB
+ * of JSON) would not fit in the request, and what is saved is smaller. Each result is saved in the open workspace.
+ */
+const importOne = async ({ text }) => {
+  const read = importPostman(JSON.parse(text))
+  if (read.kind === 'environment') {
+    const created = await api.post(ws('/environments'), read.environment)
+    return { kind: 'environment', id: created.id, warnings: read.warnings }
+  }
+  assertFits(read.collection)
+  const created = await api.post(ws('/collections'), { collection: read.collection })
+  return { kind: 'collection', id: created.id, warnings: read.warnings }
+}
+
+const reasonOf = (error) =>
+  error instanceof SyntaxError
+    ? t('Esse arquivo não é um JSON do Postman.')
+    : (error.detail ?? error.message ?? t('Algo deu errado.'))
+
+/** Brings in every file, one by one, so a bad one does not stop the rest. */
+const importAll = async (files) => {
+  const outcome = { done: [], failed: [], skipped: [] }
+  try {
+    for (const entry of await textsOf(files)) {
+      try {
+        outcome.done.push(await importOne(entry))
+      } catch (error) {
+        outcome[entry.inZip ? 'skipped' : 'failed'].push({ name: entry.name, message: reasonOf(error) })
+      }
+    }
+  } catch (error) {
+    outcome.failed.push({ name: files[0]?.name ?? '', message: reasonOf(error) })
+  }
+  return outcome
+}
+
+const importFiles = async (files) => {
+  const { done, failed, skipped } = await importAll(files)
+  await loadLists()
+  const lastCollection = done.findLast((result) => result.kind === 'collection')
+  if (lastCollection) {
+    await openCollection(lastCollection.id)
+    state.view = 'request'
+  }
+  draw()
+  toast(importMessage(done, failed, skipped.length))
 }
 
 const newCollection = async () => {
@@ -959,7 +1025,13 @@ const wire = () => {
     state.filter = event.target.value.trim().toLowerCase()
     draw()
   })
-  $('#file').addEventListener('change', (event) => event.target.files[0] && editing(importFile)(event.target.files[0]))
+  $('#file').addEventListener('change', async (event) => {
+    const files = [...event.target.files]
+    event.target.value = ''
+    if (files.length > 0) {
+      await editing(importFiles)(files)
+    }
+  })
 }
 
 const boot = async () => {

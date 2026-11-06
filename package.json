@@ -15,6 +15,7 @@
   },
   "scripts": {
     "up": "bun run scripts/up.ts",
+    "postman:export": "bun run scripts/postman-export.ts",
     "api": "bun run services/api/src/local.ts",
     "build": "bun run build:lambda && bun run build:panel",
     "build:lambda": "bun build services/api/src/lambda.ts --target=node --format=esm --external '@aws-sdk/*' --outfile=dist/lambda/index.mjs && cd dist/lambda && rm -f ../lambda.zip && zip -q ../lambda.zip index.mjs",

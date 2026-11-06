@@ -13,7 +13,7 @@ import {
   variableSchema,
   viewerView
 } from '@postmano/core'
-import { importPostmanCollection } from '@postmano/postman'
+import { importPostman as readPostmanExport } from '@postmano/postman'
 import { effectiveAuth, prepareRequest, sendRequest } from '@postmano/send'
 import { z as zod } from 'zod'
 
@@ -60,7 +60,7 @@ const sendBodySchema = zod.object({
 
 const me: Handler = async ({ caller }) => caller
 
-const importPostman: Handler = async ({ request }) => importPostmanCollection(await readJson(request))
+const importPostman: Handler = async ({ request }) => readPostmanExport(await readJson(request))
 
 const send: Handler = async ({ request, deps }) => {
   const body = parse(sendBodySchema, await readJson(request))
