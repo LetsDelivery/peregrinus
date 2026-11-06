@@ -15,37 +15,44 @@ const MESSAGES = () => ({
   upstream_failed: t('O servidor não conseguiu falar com o destino.'),
   upstream_timeout: t('O destino não respondeu a tempo.'),
   response_too_large: t('A resposta passou do tamanho máximo.'),
+  expired: t('Este acesso expirou. Peça um novo ao time.'),
+  password_required: t('Esta documentação pede a senha de acesso.'),
+  invalid_password: t('Senha incorreta.'),
+  locked: t('Acesso bloqueado depois de muitas tentativas erradas.'),
   browser_blocked: t(
     'O browser não conseguiu chamar este endereço. Confira se a API aceita CORS para esta página e se o endereço está no ar.'
   )
 })
 
 export class ApiError extends Error {
-  constructor(code, detail) {
+  constructor(code, detail, data) {
     super(MESSAGES()[code] ?? t('Algo deu errado.'))
     this.code = code
     this.detail = detail
+    /** Facts the API adds to some errors: attempts left, until when it is locked. Never a secret. */
+    this.data = data ?? {}
   }
 }
 
-const call = async (method, path, body) => {
+const call = async (method, path, body, headers = {}) => {
   const response = await fetch(`${apiBase}${path}`, {
     method,
-    headers: { 'content-type': 'application/json', ...(await authHeaders()) },
+    headers: { 'content-type': 'application/json', ...(await authHeaders()), ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) })
   })
   const json = await response.json().catch(() => ({ error: response.ok ? undefined : { code: 'upstream_failed' } }))
-  if (response.status === 401) {
+  // Only a missing sign-in sends the person to Google. A page that asks for its password also answers 401.
+  if (response.status === 401 && json.error?.code === 'unauthenticated') {
     await login()
   }
   if (!response.ok) {
-    throw new ApiError(json.error?.code, json.error?.message)
+    throw new ApiError(json.error?.code, json.error?.message, json.error?.data)
   }
   return json
 }
 
 export const api = {
-  get: (path) => call('GET', path),
+  get: (path, headers) => call('GET', path, undefined, headers),
   post: (path, body) => call('POST', path, body),
   put: (path, body) => call('PUT', path, body),
   del: (path) => call('DELETE', path)

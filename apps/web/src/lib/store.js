@@ -33,6 +33,8 @@ export const state = {
   wsDraft: null,
   wsMenuOpen: false,
   shares: [],
+  /** The access passwords just made, by slug. They are shown once and dropped when the dialog closes. */
+  issued: {},
   shareOpen: false,
   collections: [],
   collectionId: stored().collectionId ?? null,
@@ -108,6 +110,7 @@ export const currentWorkspace = () => state.workspaces.find((item) => item.id ==
 
 /** A viewer reads; an editor and an admin also change. The API enforces it, the panel just stops offering it. */
 export const canEdit = () => ['editor', 'admin'].includes(currentWorkspace()?.role)
+export const canAdmin = () => currentWorkspace()?.role === 'admin'
 
 /** What goes to the proxy with a request, from the settings. Redirects off means none are followed. */
 export const sendOptions = () => ({

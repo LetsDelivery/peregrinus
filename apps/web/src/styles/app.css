@@ -152,7 +152,7 @@ code { font-family: var(--mono); background: var(--panel); padding: 1px 5px; bor
 .menu button { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 6px; }
 .menu button:hover { background: var(--bg); }
 .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; z-index: 30; padding: 16px; }
-.dialog { display: grid; grid-template-columns: 180px 1fr; width: min(760px, 100%); max-height: 86vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.dialog { display: grid; grid-template-columns: 180px 1fr; grid-template-rows: minmax(0, 1fr); width: min(760px, 100%); max-height: 86vh; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 .dialog-tabs { display: grid; align-content: start; gap: 2px; padding: 12px; border-right: 1px solid var(--line); background: var(--bg); }
 .dialog-tabs button { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; color: var(--muted); }
 .dialog-tabs button.on { background: var(--panel); color: var(--text); }
@@ -192,5 +192,18 @@ code { font-family: var(--mono); background: var(--panel); padding: 1px 5px; bor
 .share-url input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
 .viewer { max-width: 1280px; margin: 0 auto; padding: 16px; }
 .viewer-message { max-width: 520px; margin: 64px auto; display: grid; gap: 12px; text-align: center; }
+/* Customer access: the gate of a page with a password, the selection tree and the password shown once. */
+.gate-form { display: flex; gap: 8px; justify-content: center; }
+.gate-form input { flex: 1; max-width: 260px; }
+.gate .error { text-align: left; }
+.select-tree { border: 1px solid var(--line); border-radius: 8px; padding: 6px; max-height: 260px; overflow: auto; display: grid; gap: 2px; }
+.tree-row { display: flex; gap: 8px; align-items: center; padding-top: 2px; padding-bottom: 2px; }
+.tree-row.folder { font-weight: 600; }
+.tree-row.muted { color: var(--muted); }
+.radios { border: 0; padding: 0; margin: 0; display: grid; gap: 4px; }
+.radios label { display: flex; gap: 8px; align-items: center; }
+.share-fields { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.password-box { border: 1px solid var(--ok); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; margin-bottom: 8px; }
+.password-box code { font: 600 16px var(--mono); letter-spacing: 0.04em; user-select: all; word-break: break-all; }
 .viewer .docs-frame .toc { max-height: calc(100vh - 140px); }
 .who { color: var(--muted); font-size: 12px; }
